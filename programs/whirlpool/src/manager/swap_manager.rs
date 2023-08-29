@@ -1,13 +1,8 @@
 use solana_program::msg;
 
 use crate::{
-    errors::ErrorCode,
-    manager::{
-        tick_manager::next_tick_cross_update, whirlpool_manager::next_whirlpool_reward_infos,
-    },
-    math::*,
-    state::*,
-    util::SwapTickSequence,
+    errors::ErrorCode, manager::whirlpool_manager::next_whirlpool_reward_infos, math::*, state::*,
+    util::SwapTickSequenceRef,
 };
 use anchor_lang::prelude::*;
 use std::convert::TryInto;
@@ -26,7 +21,7 @@ pub struct PostSwapUpdate {
 
 pub fn swap(
     whirlpool: &Whirlpool,
-    swap_tick_sequence: &SwapTickSequence,
+    swap_tick_sequence: &SwapTickSequenceRef,
     amount: u64,
     sqrt_price_limit: u128,
     amount_specified_is_input: bool,
