@@ -155,7 +155,7 @@ pub trait TickArrayType {
     ) -> Result<Option<i32>>;
 
     fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<&Tick>;
-    
+
     fn update_tick(
         &mut self,
         tick_index: i32,
@@ -182,7 +182,7 @@ pub trait TickArrayType {
             lower = lower - tick_spacing as i32;
             upper = upper - tick_spacing as i32;
         }
-        tick_index >= lower && tick_index < upper    
+        tick_index >= lower && tick_index < upper
     }
 
     fn check_in_array_bounds(&self, tick_index: i32, tick_spacing: u16) -> bool {
@@ -202,8 +202,12 @@ pub trait TickArrayType {
             return Err(ErrorCode::InvalidTickSpacing.into());
         }
 
-        Ok(get_offset(tick_index, self.start_tick_index(), tick_spacing))
-    }    
+        Ok(get_offset(
+            tick_index,
+            self.start_tick_index(),
+            tick_spacing,
+        ))
+    }
 }
 
 fn get_offset(tick_index: i32, start_tick_index: i32, tick_spacing: u16) -> isize {
@@ -683,10 +687,7 @@ mod full_range_indexes_tests {
 
     #[test]
     fn test_standard_tick_spacing() {
-        assert_eq!(
-            Tick::full_range_indexes(128),
-            (-443520, 443520)
-        );
+        assert_eq!(Tick::full_range_indexes(128), (-443520, 443520));
     }
 
     #[test]
@@ -699,10 +700,7 @@ mod full_range_indexes_tests {
 
     #[test]
     fn test_max_tick_spacing() {
-        assert_eq!(
-            Tick::full_range_indexes(u16::MAX),
-            (-393210, 393210)
-        );
+        assert_eq!(Tick::full_range_indexes(u16::MAX), (-393210, 393210));
     }
 }
 
