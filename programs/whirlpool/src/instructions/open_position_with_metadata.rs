@@ -1,10 +1,10 @@
 use anchor_lang::prelude::*;
 use anchor_spl::associated_token::AssociatedToken;
-use anchor_spl::token::{self, Mint, Token, TokenAccount};
 use anchor_spl::metadata::Metadata;
+use anchor_spl::token::{self, Mint, Token, TokenAccount};
 
-use crate::{state::*, util::mint_position_token_with_metadata_and_remove_authority};
 use crate::state;
+use crate::{state::*, util::mint_position_token_with_metadata_and_remove_authority};
 
 use crate::constants::nft::whirlpool_nft_update_auth::ID as WP_NFT_UPDATE_AUTH;
 
@@ -79,16 +79,17 @@ pub fn handler(
         tick_upper_index,
     )?;
 
-    mint_position_token_with_metadata_and_remove_authority(
-        whirlpool,
-        position_mint,
-        &ctx.accounts.position_token_account,
-        &ctx.accounts.position_metadata_account,
-        &ctx.accounts.metadata_update_auth,
-        &ctx.accounts.funder,
-        &ctx.accounts.metadata_program,
-        &ctx.accounts.token_program,
-        &ctx.accounts.system_program,
-        &ctx.accounts.rent,
-    )
+    // mint_position_token_with_metadata_and_remove_authority(
+    //     whirlpool,
+    //     position_mint,
+    //     &ctx.accounts.position_token_account,
+    //     &ctx.accounts.position_metadata_account,
+    //     &ctx.accounts.metadata_update_auth,
+    //     &ctx.accounts.funder,
+    //     &ctx.accounts.metadata_program,
+    //     &ctx.accounts.token_program,
+    //     &ctx.accounts.system_program,
+    //     &ctx.accounts.rent,
+    // )
+    Ok(())
 }
