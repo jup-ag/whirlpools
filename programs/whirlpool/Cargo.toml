@@ -18,11 +18,10 @@ default = []
 anchor-lang = "0.28"
 anchor-spl = "0.28"
 spl-token = { version = "3.3", features = ["no-entrypoint"] }
-solana-program = ">=1.14,<1.17"
+solana-program = "1.16"
 thiserror = "1.0"
 uint = { version = "0.9", default-features = false }
 borsh = "0.10"
-mpl-token-metadata = { version = "3.0.1" }
 
 [dev-dependencies]
 proptest = "1.0"
