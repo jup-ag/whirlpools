@@ -18,7 +18,7 @@ idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 anchor-lang = "0.30"
 anchor-spl = {version = "0.30", features = ["metadata", "memo"]}
 spl-token = {version = "4", features = ["no-entrypoint"]}
-spl-transfer-hook-interface = "0.5.1"
+spl-transfer-hook-interface = "0.5.0"
 solana-program = "1.18"
 thiserror = "1.0"
 uint = {version = "0.9.1", default-features = false}
