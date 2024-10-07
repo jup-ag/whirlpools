@@ -377,7 +377,7 @@ impl TickArrayType for TickArray {
     }
 }
 
-pub(crate) struct ZeroedTickArray {
+pub struct ZeroedTickArray {
     pub start_tick_index: i32,
     zeroed_tick: Tick,
 }
