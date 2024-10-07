@@ -206,7 +206,7 @@ pub fn swap(
     })
 }
 
-fn calculate_fees(
+pub fn calculate_fees(
     fee_amount: u64,
     protocol_fee_rate: u16,
     curr_liquidity: u128,
@@ -235,7 +235,7 @@ fn calculate_protocol_fee(global_fee: u64, protocol_fee_rate: u16) -> u64 {
         .unwrap()
 }
 
-fn calculate_next_liquidity(tick: &Tick, a_to_b: bool, liquidity: u128) -> Result<u128> {
+pub fn calculate_next_liquidity(tick: &Tick, a_to_b: bool, liquidity: u128) -> Result<u128> {
     // Use updated fee_growth for crossing tick
     // Use -liquidity_net if going left, +liquidity_net going right
     let signed_liquidity_net = if a_to_b {
@@ -250,7 +250,7 @@ fn calculate_next_liquidity(tick: &Tick, a_to_b: bool, liquidity: u128) -> Resul
     Ok(next_liquidity)
 }
 
-fn get_next_sqrt_prices(
+pub fn get_next_sqrt_prices(
     next_tick_index: i32,
     sqrt_price_limit: u128,
     a_to_b: bool,
