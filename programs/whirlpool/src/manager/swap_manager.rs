@@ -24,6 +24,7 @@ pub struct PostSwapUpdate {
     pub next_protocol_fee: u64,
 }
 
+#[inline(never)]
 pub fn swap(
     whirlpool: &Whirlpool,
     swap_tick_sequence: &SwapTickSequence,
