@@ -6,11 +6,12 @@ use crate::{
     },
 };
 use anchor_lang::prelude::*;
+use bytemuck::{Pod, Zeroable};
 
 use super::WhirlpoolsConfig;
 
 #[account]
-#[derive(Default)]
+#[derive(Default, Copy)]
 pub struct Whirlpool {
     pub whirlpools_config: Pubkey, // 32
     pub whirlpool_bump: [u8; 1],   // 1
@@ -52,6 +53,9 @@ pub struct Whirlpool {
 
     pub reward_infos: [WhirlpoolRewardInfo; NUM_REWARDS], // 384
 }
+
+unsafe impl Zeroable for Whirlpool {}
+unsafe impl Pod for Whirlpool {}
 
 // Number of rewards supported by Whirlpools
 pub const NUM_REWARDS: usize = 3;
