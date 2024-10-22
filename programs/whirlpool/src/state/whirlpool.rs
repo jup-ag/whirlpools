@@ -11,6 +11,7 @@ use bytemuck::{Pod, Zeroable};
 use super::WhirlpoolsConfig;
 
 #[account]
+#[repr(C)]
 #[derive(Default, Copy)]
 pub struct Whirlpool {
     pub whirlpools_config: Pubkey, // 32
