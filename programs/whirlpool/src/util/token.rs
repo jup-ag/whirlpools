@@ -113,6 +113,7 @@ pub fn mint_position_token_and_remove_authority<'info>(
     remove_position_token_mint_authority(whirlpool, position_mint, token_program)
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn mint_position_token_with_metadata_and_remove_authority<'info>(
     whirlpool: &Account<'info, Whirlpool>,
     position_mint: &Account<'info, Mint>,
@@ -236,6 +237,7 @@ pub fn mint_position_bundle_token_and_remove_authority<'info>(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn mint_position_bundle_token_with_metadata_and_remove_authority<'info>(
     funder: &Signer<'info>,
     position_bundle: &Account<'info, PositionBundle>,

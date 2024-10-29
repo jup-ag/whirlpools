@@ -1,22 +1,27 @@
-import { Address } from "@coral-xyz/anchor";
-import { Percentage, TransactionBuilder } from "@orca-so/common-sdk";
-import { PublicKey } from "@solana/web3.js";
-import { WhirlpoolContext } from "./context";
+import type { Address } from "@coral-xyz/anchor";
+import type { Percentage, TransactionBuilder } from "@orca-so/common-sdk";
+import type { PublicKey } from "@solana/web3.js";
+import type { WhirlpoolContext } from "./context";
 import { WhirlpoolClientImpl } from "./impl/whirlpool-client-impl";
-import { DevFeeSwapInput, SwapInput } from "./instructions";
-import {
+import type { DevFeeSwapInput, SwapInput } from "./instructions";
+import type {
   WhirlpoolAccountFetchOptions,
   WhirlpoolAccountFetcherInterface,
 } from "./network/public/fetcher";
-import { WhirlpoolRouter } from "./router/public";
-import {
+import type { WhirlpoolRouter } from "./router/public";
+import type {
   DecreaseLiquidityInput,
   IncreaseLiquidityInput,
   PositionData,
   TickData,
   WhirlpoolData,
 } from "./types/public";
-import { TokenAccountInfo, TokenInfo, WhirlpoolRewardInfo } from "./types/public/client-types";
+import type {
+  TokenAccountInfo,
+  TokenInfo,
+  WhirlpoolRewardInfo,
+} from "./types/public/client-types";
+import type Decimal from "decimal.js";
 
 /**
  * Helper class to help interact with Whirlpool Accounts with a simpler interface.
@@ -50,7 +55,10 @@ export interface WhirlpoolClient {
    * @param opts an options object to define fetch and cache options when accessing on-chain accounts
    * @return a Whirlpool object to interact with
    */
-  getPool: (poolAddress: Address, opts?: WhirlpoolAccountFetchOptions) => Promise<Whirlpool>;
+  getPool: (
+    poolAddress: Address,
+    opts?: WhirlpoolAccountFetchOptions,
+  ) => Promise<Whirlpool>;
 
   /**
    * Get a list of Whirlpool objects matching the provided list of addresses.
@@ -58,7 +66,10 @@ export interface WhirlpoolClient {
    * @param opts an options object to define fetch and cache options when accessing on-chain accounts
    * @return a list of Whirlpool objects to interact with
    */
-  getPools: (poolAddresses: Address[], opts?: WhirlpoolAccountFetchOptions) => Promise<Whirlpool[]>;
+  getPools: (
+    poolAddresses: Address[],
+    opts?: WhirlpoolAccountFetchOptions,
+  ) => Promise<Whirlpool[]>;
 
   /**
    * Get a Position object to interact with the Position account at the given address.
@@ -67,7 +78,10 @@ export interface WhirlpoolClient {
    * @return a Position object to interact with.
    * @throws error when address does not return a Position account.
    */
-  getPosition: (positionAddress: Address, opts?: WhirlpoolAccountFetchOptions) => Promise<Position>;
+  getPosition: (
+    positionAddress: Address,
+    opts?: WhirlpoolAccountFetchOptions,
+  ) => Promise<Position>;
 
   /**
    * Get a list of Position objects to interact with the Position account at the given addresses.
@@ -77,7 +91,7 @@ export interface WhirlpoolClient {
    */
   getPositions: (
     positionAddresses: Address[],
-    opts?: WhirlpoolAccountFetchOptions
+    opts?: WhirlpoolAccountFetchOptions,
   ) => Promise<Record<string, Position | null>>;
 
   /**
@@ -89,8 +103,26 @@ export interface WhirlpoolClient {
    */
   collectFeesAndRewardsForPositions: (
     positionAddresses: Address[],
-    opts?: WhirlpoolAccountFetchOptions
+    opts?: WhirlpoolAccountFetchOptions,
   ) => Promise<TransactionBuilder[]>;
+
+  /**
+   * Create a Whirlpool account for a group of token A, token B and tick spacing
+   * @param whirlpoolConfig the address of the whirlpool config
+   * @param tokenMintA the address of the token A
+   * @param tokenMintB the address of the token B
+   * @param initialPrice the initial price of the pool (as x token B per 1 token A)
+   * @param funder the account to debit SOL from to fund the creation of the account(s)
+   * @return `poolKey`: The public key of the newly created whirlpool account. `tx`: The transaction containing instructions for the on-chain operations.
+   * @throws error when the tokens are not in the canonical byte-based ordering. To resolve this, invert the token order and the initialTick (see `TickUtil.invertTick()`, `PriceMath.invertSqrtPriceX64()`, or `PriceMath.invertPrice()`).
+   */
+  createSplashPool: (
+    whirlpoolsConfig: Address,
+    tokenMintA: Address,
+    tokenMintB: Address,
+    initialPrice: Decimal,
+    funder: Address,
+  ) => Promise<{ poolKey: PublicKey; tx: TransactionBuilder }>;
 
   /**
    * Create a Whirlpool account for a group of token A, token B and tick spacing
@@ -109,7 +141,7 @@ export interface WhirlpoolClient {
     tokenMintB: Address,
     tickSpacing: number,
     initialTick: number,
-    funder: Address
+    funder: Address,
   ) => Promise<{ poolKey: PublicKey; tx: TransactionBuilder }>;
 
   /**
@@ -117,7 +149,9 @@ export interface WhirlpoolClient {
    * @param poolAddresses the addresses of the Whirlpool accounts to collect protocol fees from
    * @returns A transaction builder to resolve ATA for tokenA and tokenB if needed, and collect protocol fees for all pools
    */
-  collectProtocolFeesForPools: (poolAddresses: Address[]) => Promise<TransactionBuilder>;
+  collectProtocolFeesForPools: (
+    poolAddresses: Address[],
+  ) => Promise<TransactionBuilder>;
 }
 
 /**
@@ -197,7 +231,7 @@ export interface Whirlpool {
   initTickArrayForTicks: (
     ticks: number[],
     funder?: Address,
-    opts?: WhirlpoolAccountFetchOptions
+    opts?: WhirlpoolAccountFetchOptions,
   ) => Promise<TransactionBuilder | null>;
 
   /**
@@ -213,6 +247,7 @@ export interface Whirlpool {
    * @param wallet - the wallet to withdraw tokens to deposit into the position and house the position token. If null, the WhirlpoolContext wallet is used.
    * @param funder - the wallet that will fund the cost needed to initialize the position. If null, the WhirlpoolContext wallet is used.
    * @param positionMint - the mint address of the position token to be created. If null, a new mint address will be created.
+   * @param tokenProgramId - the token program id to use for the position token. The default is TOKEN_PROGRAM_ID.
    * @return `positionMint` - the position to be created. `tx` - The transaction containing the instructions to perform the operation on chain.
    */
   openPosition: (
@@ -221,7 +256,8 @@ export interface Whirlpool {
     liquidityInput: IncreaseLiquidityInput,
     wallet?: Address,
     funder?: Address,
-    positionMint?: PublicKey
+    positionMint?: PublicKey,
+    tokenProgramId?: PublicKey,
   ) => Promise<{ positionMint: PublicKey; tx: TransactionBuilder }>;
 
   /**
@@ -237,6 +273,7 @@ export interface Whirlpool {
    * @param wallet - the wallet to withdraw tokens to deposit into the position and house the position token. If null, the WhirlpoolContext wallet is used.
    * @param funder - the wallet that will fund the cost needed to initialize the position. If null, the WhirlpoolContext wallet is used.
    * @param positionMint - the mint address of the position token to be created. If null, a new mint address will be created.
+   * @param tokenProgramId - the token program id to use for the position token. The default is TOKEN_PROGRAM_ID.
    * @return `positionMint` - the position to be created. `tx` - The transaction containing the instructions to perform the operation on chain.
    */
   openPositionWithMetadata: (
@@ -245,7 +282,8 @@ export interface Whirlpool {
     liquidityInput: IncreaseLiquidityInput,
     wallet?: Address,
     funder?: Address,
-    positionMint?: PublicKey
+    positionMint?: PublicKey,
+    tokenProgramId?: PublicKey,
   ) => Promise<{ positionMint: PublicKey; tx: TransactionBuilder }>;
 
   /**
@@ -269,7 +307,7 @@ export interface Whirlpool {
     destinationWallet?: Address,
     positionWallet?: Address,
     payer?: Address,
-    usePriceSlippage?: boolean
+    usePriceSlippage?: boolean,
   ) => Promise<TransactionBuilder[]>;
 
   /**
@@ -294,7 +332,7 @@ export interface Whirlpool {
     input: DevFeeSwapInput,
     devFeeWallet: PublicKey,
     wallet?: PublicKey,
-    payer?: PublicKey
+    payer?: PublicKey,
   ) => Promise<TransactionBuilder>;
 }
 
@@ -308,6 +346,12 @@ export interface Position {
    * @return the PublicKey for this Whirlpool instance.
    */
   getAddress: () => PublicKey;
+
+  /**
+   * Return the program address owning the position token.
+   * @return the PublicKey for the program address owning the position token.
+   */
+  getPositionMintTokenProgramId: () => PublicKey;
 
   /**
    * Return the most recently fetched Position account data.
@@ -356,7 +400,7 @@ export interface Position {
     resolveATA?: boolean,
     wallet?: Address,
     positionWallet?: Address,
-    ataPayer?: Address
+    ataPayer?: Address,
   ) => Promise<TransactionBuilder>;
 
   /**
@@ -376,7 +420,7 @@ export interface Position {
     resolveATA?: boolean,
     destinationWallet?: Address,
     positionWallet?: Address,
-    ataPayer?: Address
+    ataPayer?: Address,
   ) => Promise<TransactionBuilder>;
 
   /**
@@ -398,7 +442,7 @@ export interface Position {
     destinationWallet?: Address,
     positionWallet?: Address,
     ataPayer?: Address,
-    opts?: WhirlpoolAccountFetchOptions
+    opts?: WhirlpoolAccountFetchOptions,
   ) => Promise<TransactionBuilder>;
 
   /**
@@ -422,6 +466,6 @@ export interface Position {
     destinationWallet?: Address,
     positionWallet?: Address,
     ataPayer?: Address,
-    opts?: WhirlpoolAccountFetchOptions
+    opts?: WhirlpoolAccountFetchOptions,
   ) => Promise<TransactionBuilder[]>;
 }

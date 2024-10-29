@@ -106,7 +106,7 @@ mod test_u256 {
         let b = U256::from(u128::MAX);
         let sum = a + b;
         let c: Result<u128, ErrorCode> = sum.try_into_u128();
-        assert_eq!(c.is_err(), true);
+        assert!(c.is_err());
     }
 
     #[test]
@@ -142,7 +142,7 @@ mod test_u256 {
         let b = U256::from(u64::MAX);
         let sum = a + b;
         let c: Result<u64, ErrorCode> = sum.try_into_u64();
-        assert_eq!(c.is_err(), true);
+        assert!(c.is_err());
     }
 
     #[test]

@@ -1,15 +1,20 @@
-import { AnchorProvider, BN, web3 } from "@coral-xyz/anchor";
-import { AddressUtil, TokenUtil, TransactionBuilder, U64_MAX, ZERO } from "@orca-so/common-sdk";
+import type { AnchorProvider } from "@coral-xyz/anchor";
+import { BN, web3 } from "@coral-xyz/anchor";
+import {
+  AddressUtil,
+  TokenUtil,
+  TransactionBuilder,
+  U64_MAX,
+} from "@orca-so/common-sdk";
+import type { Mint, TransferFee } from "@solana/spl-token";
 import {
   AccountLayout,
   AccountState,
   ExtensionType,
   LENGTH_SIZE,
-  Mint,
   NATIVE_MINT,
   NATIVE_MINT_2022,
   TYPE_SIZE,
-  TransferFee,
   addExtraAccountMetasForExecute,
   calculateFee,
   createApproveInstruction,
@@ -33,36 +38,44 @@ import {
   createReallocateInstruction,
   getAccount,
   getAccountLen,
-  getAccountLenForMint,
+  getAccountTypeOfMintType,
   getAssociatedTokenAddressSync,
   getExtensionTypes,
   getMemoTransfer,
   getMint,
   getMintLen,
-  getTypeLen
+  getTypeLen,
 } from "@solana/spl-token";
+import type { TokenMetadata } from "@solana/spl-token-metadata";
 import {
-  TokenMetadata,
   pack as packTokenMetadata,
   createInitializeInstruction as createInitializeTokenMetadataInstruction,
 } from "@solana/spl-token-metadata";
+import type { TokenGroup, TokenGroupMember } from "@solana/spl-token-group";
 import {
   createInitializeGroupInstruction,
   createInitializeMemberInstruction,
   packTokenGroup,
   packTokenGroupMember,
-  TokenGroup,
-  TokenGroupMember,
 } from "@solana/spl-token-group";
-import { TEST_TOKEN_PROGRAM_ID, TEST_TOKEN_2022_PROGRAM_ID, TEST_TRANSFER_HOOK_PROGRAM_ID, ZERO_BN } from "../test-consts";
-import { TokenTrait } from "./init-utils-v2";
-import { Keypair, TransactionInstruction, AccountMeta } from "@solana/web3.js";
+import {
+  TEST_TOKEN_PROGRAM_ID,
+  TEST_TOKEN_2022_PROGRAM_ID,
+  TEST_TRANSFER_HOOK_PROGRAM_ID,
+  ZERO_BN,
+} from "../test-consts";
+import type { TokenTrait } from "./init-utils-v2";
+import type { AccountMeta } from "@solana/web3.js";
+import { Keypair, TransactionInstruction } from "@solana/web3.js";
 import invariant from "tiny-invariant";
 import { PoolUtil } from "../../../src";
 import * as assert from "assert";
 import { PublicKey } from "@solana/web3.js";
 import { createInitializeExtraAccountMetaListInstruction } from "./test-transfer-hook-program";
-import { createInitializeConfidentialTransferFeeConfigInstruction, createInitializeConfidentialTransferMintInstruction } from "./confidential-transfer";
+import {
+  createInitializeConfidentialTransferFeeConfigInstruction,
+  createInitializeConfidentialTransferMintInstruction,
+} from "./confidential-transfer";
 
 export async function createMintV2(
   provider: AnchorProvider,
@@ -83,7 +96,12 @@ export async function createMintV2(
   }
 
   const mint = mintKeypair ?? web3.Keypair.generate();
-  const instructions = await createMintInstructions(provider, tokenTrait, authority, mint.publicKey);
+  const instructions = await createMintInstructions(
+    provider,
+    tokenTrait,
+    authority,
+    mint.publicKey,
+  );
 
   const tx = new web3.Transaction();
   tx.add(...instructions);
@@ -97,9 +115,12 @@ async function createMintInstructions(
   provider: AnchorProvider,
   tokenTrait: TokenTrait,
   authority: web3.PublicKey,
-  mint: web3.PublicKey
+  mint: web3.PublicKey,
 ) {
-  invariant(!tokenTrait.isNativeMint, "Cannot create a mint for the native token");
+  invariant(
+    !tokenTrait.isNativeMint,
+    "Cannot create a mint for the native token",
+  );
 
   if (!tokenTrait.isToken2022) {
     const instructions = [
@@ -107,10 +128,17 @@ async function createMintInstructions(
         fromPubkey: provider.wallet.publicKey,
         newAccountPubkey: mint,
         space: 82,
-        lamports: await provider.connection.getMinimumBalanceForRentExemption(82),
+        lamports:
+          await provider.connection.getMinimumBalanceForRentExemption(82),
         programId: TEST_TOKEN_PROGRAM_ID,
       }),
-      createInitializeMintInstruction(mint, 0, authority, tokenTrait.hasFreezeAuthority ? authority : null, TEST_TOKEN_PROGRAM_ID),
+      createInitializeMintInstruction(
+        mint,
+        0,
+        authority,
+        tokenTrait.hasFreezeAuthority ? authority : null,
+        TEST_TOKEN_PROGRAM_ID,
+      ),
     ];
     return instructions;
   } else {
@@ -126,8 +154,8 @@ async function createMintInstructions(
         createInitializePermanentDelegateInstruction(
           mint,
           authority,
-          TEST_TOKEN_2022_PROGRAM_ID
-        )
+          TEST_TOKEN_2022_PROGRAM_ID,
+        ),
       );
     }
 
@@ -141,8 +169,8 @@ async function createMintInstructions(
           authority,
           tokenTrait.transferFeeInitialBps ?? 500, // default: 5%
           tokenTrait.transferFeeInitialMax ?? BigInt(U64_MAX.toString()), // default: virtually unlimited
-          TEST_TOKEN_2022_PROGRAM_ID
-        )
+          TEST_TOKEN_2022_PROGRAM_ID,
+        ),
       );
     }
 
@@ -155,14 +183,16 @@ async function createMintInstructions(
           authority,
           TEST_TRANSFER_HOOK_PROGRAM_ID,
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
 
       // create ExtraAccountMetaList account
-      postInitialization.push(createInitializeExtraAccountMetaListInstruction(
-        provider.wallet.publicKey,
-        mint,
-      ));
+      postInitialization.push(
+        createInitializeExtraAccountMetaListInstruction(
+          provider.wallet.publicKey,
+          mint,
+        ),
+      );
     }
 
     // ConfidentialTransfer
@@ -171,7 +201,8 @@ async function createMintInstructions(
     let confidentialTransferMintSizePatch = 0;
     if (tokenTrait.hasConfidentialTransferExtension) {
       fixedLengthExtensions.push(ExtensionType.ConfidentialTransferMint);
-      confidentialTransferMintSizePatch = (65 - getTypeLen(ExtensionType.ConfidentialTransferMint));
+      confidentialTransferMintSizePatch =
+        65 - getTypeLen(ExtensionType.ConfidentialTransferMint);
       extensions.push(
         createInitializeConfidentialTransferMintInstruction(
           mint,
@@ -179,14 +210,17 @@ async function createMintInstructions(
           true, // autoApproveNewAccounts
           PublicKey.default, // auditorElgamal
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
     }
 
     // ConfidentialTransferFeeConfig
     // When both TransferFeeConfig and ConfidentialTransferMint are enabled, ConfidentialTransferFeeConfig is also required
     let confidentialTransferFeeConfigSizePatch = 0;
-    if (tokenTrait.hasTransferFeeExtension && tokenTrait.hasConfidentialTransferExtension) {
+    if (
+      tokenTrait.hasTransferFeeExtension &&
+      tokenTrait.hasConfidentialTransferExtension
+    ) {
       // fixedLengthExtensions.push(ExtensionType.ConfidentialTransferFeeConfig);
       // [May 25, 2024] ExtensionType.ConfidentialTransferFeeConfig is not yet supported in spl-token
       // ConfidentialTransferFeeConfig struct fields:
@@ -200,8 +234,8 @@ async function createMintInstructions(
           mint,
           authority,
           authority,
-          TEST_TOKEN_2022_PROGRAM_ID
-        )
+          TEST_TOKEN_2022_PROGRAM_ID,
+        ),
       );
     }
 
@@ -212,9 +246,9 @@ async function createMintInstructions(
         createInitializeInterestBearingMintInstruction(
           mint,
           authority,
-          1,
+          tokenTrait.interestBearingRate ?? 1, // default 1/10000
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
     }
 
@@ -226,7 +260,7 @@ async function createMintInstructions(
           mint,
           authority,
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
     }
 
@@ -238,7 +272,7 @@ async function createMintInstructions(
           mint,
           tokenTrait.defaultAccountInitialState ?? AccountState.Frozen,
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
     }
 
@@ -249,7 +283,7 @@ async function createMintInstructions(
         createInitializeNonTransferableMintInstruction(
           mint,
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
     }
 
@@ -266,7 +300,8 @@ async function createMintInstructions(
       };
 
       const tokenMetadataSize = packTokenMetadata(metadata).length;
-      const tokenMetadataExtensionSize = TYPE_SIZE + LENGTH_SIZE + tokenMetadataSize;
+      const tokenMetadataExtensionSize =
+        TYPE_SIZE + LENGTH_SIZE + tokenMetadataSize;
       rentReservedSpace.push(tokenMetadataExtensionSize);
       postInitialization.push(
         createInitializeTokenMetadataInstruction({
@@ -278,10 +313,10 @@ async function createMintInstructions(
           symbol: metadata.symbol,
           uri: metadata.uri,
           programId: TEST_TOKEN_2022_PROGRAM_ID,
-        })
+        }),
       );
     }
-    
+
     // MetadataPointer
     if (tokenTrait.hasMetadataPointerExtension) {
       fixedLengthExtensions.push(ExtensionType.MetadataPointer);
@@ -291,7 +326,7 @@ async function createMintInstructions(
           authority,
           mint,
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
     }
 
@@ -304,7 +339,7 @@ async function createMintInstructions(
           authority,
           mint,
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
     }
 
@@ -317,7 +352,7 @@ async function createMintInstructions(
           authority,
           null,
           TEST_TOKEN_2022_PROGRAM_ID,
-        )
+        ),
       );
     }
 
@@ -326,8 +361,8 @@ async function createMintInstructions(
       const groupData: TokenGroup = {
         mint,
         updateAuthority: authority,
-        maxSize: 10,
-        size: 10,
+        maxSize: 10n,
+        size: 10n,
       };
 
       const tokenGroupSize = packTokenGroup(groupData).length;
@@ -338,11 +373,11 @@ async function createMintInstructions(
           // maybe this data is meaning less, but it is okay, because we use this to test rejecting it.
           mint: mint,
           mintAuthority: authority,
-          updateAuthority: PublicKey.default,// groupData.updateAuthority!,
+          updateAuthority: PublicKey.default, // groupData.updateAuthority!,
           group: mint,
           maxSize: groupData.maxSize,
           programId: TEST_TOKEN_2022_PROGRAM_ID,
-        })
+        }),
       );
     }
 
@@ -351,11 +386,12 @@ async function createMintInstructions(
       const groupMemberData: TokenGroupMember = {
         mint: mint,
         group: mint,
-        memberNumber: 10,
+        memberNumber: 10n,
       };
 
       const tokenGroupMemberSize = packTokenGroupMember(groupMemberData).length;
-      const tokenGroupMemberExtensionSize = TYPE_SIZE + LENGTH_SIZE + tokenGroupMemberSize;
+      const tokenGroupMemberExtensionSize =
+        TYPE_SIZE + LENGTH_SIZE + tokenGroupMemberSize;
       rentReservedSpace.push(tokenGroupMemberExtensionSize);
       postInitialization.push(
         createInitializeMemberInstruction({
@@ -366,25 +402,38 @@ async function createMintInstructions(
           member: mint,
           memberMintAuthority: authority,
           programId: TEST_TOKEN_2022_PROGRAM_ID,
-        })
+        }),
       );
     }
 
-    const space = getMintLen(fixedLengthExtensions) + confidentialTransferMintSizePatch + confidentialTransferFeeConfigSizePatch;
-    const rentOnlySpace = rentReservedSpace.reduce((sum, n) => { return sum + n; }, 0);
+    const space =
+      getMintLen(fixedLengthExtensions) +
+      confidentialTransferMintSizePatch +
+      confidentialTransferFeeConfigSizePatch;
+    const rentOnlySpace = rentReservedSpace.reduce((sum, n) => {
+      return sum + n;
+    }, 0);
     const instructions = [
       web3.SystemProgram.createAccount({
         fromPubkey: provider.wallet.publicKey,
         newAccountPubkey: mint,
         space,
-        lamports: await provider.connection.getMinimumBalanceForRentExemption(space + rentOnlySpace) ,
+        lamports: await provider.connection.getMinimumBalanceForRentExemption(
+          space + rentOnlySpace,
+        ),
         programId: TEST_TOKEN_2022_PROGRAM_ID,
       }),
       ...extensions,
-      createInitializeMintInstruction(mint, 0, authority, tokenTrait.hasFreezeAuthority ? authority : null, TEST_TOKEN_2022_PROGRAM_ID),
+      createInitializeMintInstruction(
+        mint,
+        0,
+        authority,
+        tokenTrait.hasFreezeAuthority ? authority : null,
+        TEST_TOKEN_2022_PROGRAM_ID,
+      ),
       ...postInitialization,
     ];
-    return instructions;    
+    return instructions;
   }
 }
 
@@ -392,12 +441,22 @@ export async function createTokenAccountV2(
   provider: AnchorProvider,
   tokenTrait: TokenTrait,
   mint: web3.PublicKey,
-  owner: web3.PublicKey
+  owner: web3.PublicKey,
 ) {
   const tokenAccount = web3.Keypair.generate();
   const tx = new web3.Transaction();
-  tx.add(...(await createTokenAccountInstructions(provider, tokenTrait, tokenAccount.publicKey, mint, owner)));
-  await provider.sendAndConfirm(tx, [tokenAccount], { commitment: "confirmed" });
+  tx.add(
+    ...(await createTokenAccountInstructions(
+      provider,
+      tokenTrait,
+      tokenAccount.publicKey,
+      mint,
+      owner,
+    )),
+  );
+  await provider.sendAndConfirm(tx, [tokenAccount], {
+    commitment: "confirmed",
+  });
   return tokenAccount.publicKey;
 }
 
@@ -406,10 +465,17 @@ export async function createAssociatedTokenAccountV2(
   tokenTrait: TokenTrait,
   mint: web3.PublicKey,
   owner: web3.PublicKey,
-  payer: web3.PublicKey
+  payer: web3.PublicKey,
 ) {
-  const tokenProgram = tokenTrait.isToken2022 ? TEST_TOKEN_2022_PROGRAM_ID : TEST_TOKEN_PROGRAM_ID;
-  const ataAddress = getAssociatedTokenAddressSync(mint, owner, undefined, tokenProgram);
+  const tokenProgram = tokenTrait.isToken2022
+    ? TEST_TOKEN_2022_PROGRAM_ID
+    : TEST_TOKEN_PROGRAM_ID;
+  const ataAddress = getAssociatedTokenAddressSync(
+    mint,
+    owner,
+    undefined,
+    tokenProgram,
+  );
   const instr = createAssociatedTokenAccountInstruction(
     payer,
     ataAddress,
@@ -429,16 +495,22 @@ async function createTokenAccountInstructions(
   newAccountPubkey: web3.PublicKey,
   mint: web3.PublicKey,
   owner: web3.PublicKey,
-  lamports?: number
+  lamports?: number,
 ) {
   const mintAccountInfo = await provider.connection.getAccountInfo(mint);
-  const mintData = await getMint(provider.connection, mint, undefined, mintAccountInfo!.owner);
+  const mintData = await getMint(
+    provider.connection,
+    mint,
+    undefined,
+    mintAccountInfo!.owner,
+  );
 
   const isToken2022 = mintAccountInfo!.owner.equals(TEST_TOKEN_2022_PROGRAM_ID);
 
   if (!isToken2022) {
     if (lamports === undefined) {
-      lamports = await provider.connection.getMinimumBalanceForRentExemption(165);
+      lamports =
+        await provider.connection.getMinimumBalanceForRentExemption(165);
     }
     return [
       web3.SystemProgram.createAccount({
@@ -448,12 +520,18 @@ async function createTokenAccountInstructions(
         lamports,
         programId: TEST_TOKEN_PROGRAM_ID,
       }),
-      createInitializeAccount3Instruction(newAccountPubkey, mint, owner, TEST_TOKEN_PROGRAM_ID)
+      createInitializeAccount3Instruction(
+        newAccountPubkey,
+        mint,
+        owner,
+        TEST_TOKEN_PROGRAM_ID,
+      ),
     ];
   } else {
     const accountLen = getAccountLenForMintHack(mintData);
     if (lamports === undefined) {
-      lamports = await provider.connection.getMinimumBalanceForRentExemption(accountLen);
+      lamports =
+        await provider.connection.getMinimumBalanceForRentExemption(accountLen);
     }
     return [
       web3.SystemProgram.createAccount({
@@ -463,7 +541,12 @@ async function createTokenAccountInstructions(
         lamports,
         programId: TEST_TOKEN_2022_PROGRAM_ID,
       }),
-      createInitializeAccount3Instruction(newAccountPubkey, mint, owner, TEST_TOKEN_2022_PROGRAM_ID)
+      createInitializeAccount3Instruction(
+        newAccountPubkey,
+        mint,
+        owner,
+        TEST_TOKEN_2022_PROGRAM_ID,
+      ),
     ];
   }
 }
@@ -473,7 +556,7 @@ export async function mintToDestinationV2(
   tokenTrait: TokenTrait,
   mint: web3.PublicKey,
   destination: web3.PublicKey,
-  amount: number | BN
+  amount: number | BN,
 ): Promise<string> {
   const tx = new web3.Transaction();
   const amountVal = amount instanceof BN ? BigInt(amount.toString()) : amount;
@@ -484,8 +567,10 @@ export async function mintToDestinationV2(
       provider.wallet.publicKey,
       amountVal,
       undefined,
-      tokenTrait.isToken2022 ? TEST_TOKEN_2022_PROGRAM_ID : TEST_TOKEN_PROGRAM_ID
-    )
+      tokenTrait.isToken2022
+        ? TEST_TOKEN_2022_PROGRAM_ID
+        : TEST_TOKEN_PROGRAM_ID,
+    ),
   );
   return provider.sendAndConfirm(tx, [], { commitment: "confirmed" });
 }
@@ -494,10 +579,21 @@ export async function createAndMintToTokenAccountV2(
   provider: AnchorProvider,
   tokenTrait: TokenTrait,
   mint: web3.PublicKey,
-  amount: number | BN
+  amount: number | BN,
 ): Promise<web3.PublicKey> {
-  const tokenAccount = await createTokenAccountV2(provider, tokenTrait, mint, provider.wallet.publicKey);
-  await mintToDestinationV2(provider, tokenTrait, mint, tokenAccount, new BN(amount.toString()));
+  const tokenAccount = await createTokenAccountV2(
+    provider,
+    tokenTrait,
+    mint,
+    provider.wallet.publicKey,
+  );
+  await mintToDestinationV2(
+    provider,
+    tokenTrait,
+    mint,
+    tokenAccount,
+    new BN(amount.toString()),
+  );
   return tokenAccount;
 }
 
@@ -507,25 +603,32 @@ export async function createAndMintToAssociatedTokenAccountV2(
   mint: web3.PublicKey,
   amount: number | BN,
   destinationWallet?: web3.PublicKey,
-  payer?: web3.PublicKey
+  payer?: web3.PublicKey,
 ): Promise<web3.PublicKey> {
-  const destinationWalletKey = destinationWallet ? destinationWallet : provider.wallet.publicKey;
+  const destinationWalletKey = destinationWallet
+    ? destinationWallet
+    : provider.wallet.publicKey;
   const payerKey = payer ? payer : provider.wallet.publicKey;
 
   // Workaround For SOL - just create a wSOL account to satisfy the rest of the test building pipeline.
   // Tests who want to test with SOL will have to request their own airdrop.
   if (mint.equals(NATIVE_MINT)) {
     invariant(tokenTrait.isNativeMint, "Mint must be the native mint");
-    const rentExemption = await provider.connection.getMinimumBalanceForRentExemption(
-      AccountLayout.span,
-      "confirmed"
+    const rentExemption =
+      await provider.connection.getMinimumBalanceForRentExemption(
+        AccountLayout.span,
+        "confirmed",
+      );
+    const txBuilder = new TransactionBuilder(
+      provider.connection,
+      provider.wallet,
     );
-    const txBuilder = new TransactionBuilder(provider.connection, provider.wallet);
-    const { address: tokenAccount, ...ix } = TokenUtil.createWrappedNativeAccountInstruction(
-      destinationWalletKey,
-      new BN(amount.toString()),
-      rentExemption
-    );
+    const { address: tokenAccount, ...ix } =
+      TokenUtil.createWrappedNativeAccountInstruction(
+        destinationWalletKey,
+        new BN(amount.toString()),
+        rentExemption,
+      );
     txBuilder.addInstruction({ ...ix, cleanupInstructions: [] });
     await txBuilder.buildAndExecute();
     return tokenAccount;
@@ -534,10 +637,17 @@ export async function createAndMintToAssociatedTokenAccountV2(
     invariant(tokenTrait.isNativeMint, "Mint must be the native mint");
 
     const space = getAccountLen([]);
-    const rentExemption = await provider.connection.getMinimumBalanceForRentExemption(space, "confirmed");
+    const rentExemption =
+      await provider.connection.getMinimumBalanceForRentExemption(
+        space,
+        "confirmed",
+      );
     const tokenAccountKeypair = Keypair.generate();
 
-    const txBuilder = new TransactionBuilder(provider.connection, provider.wallet);
+    const txBuilder = new TransactionBuilder(
+      provider.connection,
+      provider.wallet,
+    );
     txBuilder.addInstruction({
       instructions: [
         web3.SystemProgram.createAccount({
@@ -547,24 +657,37 @@ export async function createAndMintToAssociatedTokenAccountV2(
           lamports: rentExemption,
           programId: TEST_TOKEN_2022_PROGRAM_ID,
         }),
-        createInitializeAccount3Instruction(tokenAccountKeypair.publicKey, mint, destinationWalletKey, TEST_TOKEN_2022_PROGRAM_ID)
+        createInitializeAccount3Instruction(
+          tokenAccountKeypair.publicKey,
+          mint,
+          destinationWalletKey,
+          TEST_TOKEN_2022_PROGRAM_ID,
+        ),
       ],
       cleanupInstructions: [],
-      signers: [tokenAccountKeypair]
+      signers: [tokenAccountKeypair],
     });
     await txBuilder.buildAndExecute();
     return tokenAccountKeypair.publicKey;
   }
 
-  const tokenAccounts = await provider.connection.getParsedTokenAccountsByOwner(destinationWalletKey, {
-    programId: tokenTrait.isToken2022 ? TEST_TOKEN_2022_PROGRAM_ID : TEST_TOKEN_PROGRAM_ID,
-  });
+  const tokenAccounts = await provider.connection.getParsedTokenAccountsByOwner(
+    destinationWalletKey,
+    {
+      programId: tokenTrait.isToken2022
+        ? TEST_TOKEN_2022_PROGRAM_ID
+        : TEST_TOKEN_PROGRAM_ID,
+    },
+  );
 
-  let tokenAccount = tokenAccounts.value.map((account) => {
-    if (account.account.data.parsed.info.mint === mint.toString()) {
-      return account.pubkey
-    }
-  }).filter(Boolean)[0];
+  let tokenAccount = tokenAccounts.value
+    .map((account) => {
+      if (account.account.data.parsed.info.mint === mint.toString()) {
+        return account.pubkey;
+      }
+      return undefined;
+    })
+    .filter(Boolean)[0];
 
   if (!tokenAccount) {
     tokenAccount = await createAssociatedTokenAccountV2(
@@ -572,43 +695,67 @@ export async function createAndMintToAssociatedTokenAccountV2(
       tokenTrait,
       mint,
       destinationWalletKey,
-      payerKey
+      payerKey,
     );
   }
 
-  await mintToDestinationV2(provider, tokenTrait, mint, tokenAccount!, new BN(amount.toString()));
+  await mintToDestinationV2(
+    provider,
+    tokenTrait,
+    mint,
+    tokenAccount!,
+    new BN(amount.toString()),
+  );
   return tokenAccount!;
 }
 
-export async function getTokenBalance(provider: AnchorProvider, vault: web3.PublicKey) {
-  return (await provider.connection.getTokenAccountBalance(vault, "confirmed")).value.amount;
+export async function getTokenBalance(
+  provider: AnchorProvider,
+  vault: web3.PublicKey,
+) {
+  return (await provider.connection.getTokenAccountBalance(vault, "confirmed"))
+    .value.amount;
 }
 
-export async function createInOrderMintsV2(provider: AnchorProvider, tokenTraitA: TokenTrait, tokenTraitB: TokenTrait) {
+export async function createInOrderMintsV2(
+  provider: AnchorProvider,
+  tokenTraitA: TokenTrait,
+  tokenTraitB: TokenTrait,
+) {
   if (tokenTraitA.isNativeMint && !tokenTraitB.isNativeMint) {
-    const tokenXMintPubKey = tokenTraitA.isToken2022 ? NATIVE_MINT_2022 : NATIVE_MINT;
+    const tokenXMintPubKey = tokenTraitA.isToken2022
+      ? NATIVE_MINT_2022
+      : NATIVE_MINT;
 
     let ordered;
     do {
       const tokenYMintPubKey = await createMintV2(provider, tokenTraitB);
-      ordered = PoolUtil.orderMints(tokenXMintPubKey, tokenYMintPubKey).map(AddressUtil.toPubKey);
+      ordered = PoolUtil.orderMints(tokenXMintPubKey, tokenYMintPubKey).map(
+        AddressUtil.toPubKey,
+      );
     } while (!ordered[0].equals(tokenXMintPubKey));
-    return ordered;  
+    return ordered;
   } else if (!tokenTraitA.isNativeMint && tokenTraitB.isNativeMint) {
-    const tokenYMintPubKey = tokenTraitB.isToken2022 ? NATIVE_MINT_2022 : NATIVE_MINT;
+    const tokenYMintPubKey = tokenTraitB.isToken2022
+      ? NATIVE_MINT_2022
+      : NATIVE_MINT;
 
     let ordered;
     do {
       const tokenXMintPubKey = await createMintV2(provider, tokenTraitA);
-      ordered = PoolUtil.orderMints(tokenXMintPubKey, tokenYMintPubKey).map(AddressUtil.toPubKey);
+      ordered = PoolUtil.orderMints(tokenXMintPubKey, tokenYMintPubKey).map(
+        AddressUtil.toPubKey,
+      );
     } while (!ordered[1].equals(tokenYMintPubKey));
     return ordered;
-  }
-  else if (!tokenTraitA.isNativeMint && !tokenTraitB.isNativeMint) {
+  } else if (!tokenTraitA.isNativeMint && !tokenTraitB.isNativeMint) {
     while (true) {
       const tokenXMintPubKey = await createMintV2(provider, tokenTraitA);
       const tokenYMintPubKey = await createMintV2(provider, tokenTraitB);
-      const ordered = PoolUtil.orderMints(tokenXMintPubKey, tokenYMintPubKey).map(AddressUtil.toPubKey);
+      const ordered = PoolUtil.orderMints(
+        tokenXMintPubKey,
+        tokenYMintPubKey,
+      ).map(AddressUtil.toPubKey);
       if (ordered[0].equals(tokenXMintPubKey)) {
         return ordered;
       }
@@ -620,12 +767,15 @@ export async function createInOrderMintsV2(provider: AnchorProvider, tokenTraitA
     invariant(tokenTraitB.isToken2022, "B must be the native mint 2022");
     return [NATIVE_MINT, NATIVE_MINT_2022];
   }
-};
+}
 
 export async function initializeNativeMint2022Idempotent(
   provider: AnchorProvider,
 ) {
-  const accountInfo = await provider.connection.getAccountInfo(NATIVE_MINT_2022, "confirmed");
+  const accountInfo = await provider.connection.getAccountInfo(
+    NATIVE_MINT_2022,
+    "confirmed",
+  );
 
   // already initialized
   if (accountInfo !== null) return;
@@ -636,8 +786,15 @@ export async function initializeNativeMint2022Idempotent(
     TEST_TOKEN_2022_PROGRAM_ID,
   );
 
-  const txBuilder = new TransactionBuilder(provider.connection, provider.wallet);
-  txBuilder.addInstruction({ instructions: [ix], cleanupInstructions: [], signers: [] });
+  const txBuilder = new TransactionBuilder(
+    provider.connection,
+    provider.wallet,
+  );
+  txBuilder.addInstruction({
+    instructions: [ix],
+    cleanupInstructions: [],
+    signers: [],
+  });
   await txBuilder.buildAndExecute();
 }
 
@@ -647,10 +804,12 @@ export async function approveTokenV2(
   tokenAccount: web3.PublicKey,
   delegate: web3.PublicKey,
   amount: number | BN,
-  owner?: web3.Keypair
+  owner?: web3.Keypair,
 ) {
   const tx = new web3.Transaction();
-  const tokenProgram = tokenTrait.isToken2022 ? TEST_TOKEN_2022_PROGRAM_ID : TEST_TOKEN_PROGRAM_ID;
+  const tokenProgram = tokenTrait.isToken2022
+    ? TEST_TOKEN_2022_PROGRAM_ID
+    : TEST_TOKEN_PROGRAM_ID;
   const amountVal = amount instanceof BN ? BigInt(amount.toString()) : amount;
   tx.add(
     createApproveInstruction(
@@ -660,9 +819,11 @@ export async function approveTokenV2(
       amountVal,
       undefined,
       tokenProgram,
-    )
+    ),
   );
-  return provider.sendAndConfirm(tx, !!owner ? [owner] : [], { commitment: "confirmed" });
+  return provider.sendAndConfirm(tx, !!owner ? [owner] : [], {
+    commitment: "confirmed",
+  });
 }
 
 export async function enableRequiredMemoTransfers(
@@ -679,17 +840,19 @@ export async function enableRequiredMemoTransfers(
       owner?.publicKey || provider.wallet.publicKey,
       undefined,
       TEST_TOKEN_2022_PROGRAM_ID,
-    )
+    ),
   );
   tx.add(
     createEnableRequiredMemoTransfersInstruction(
       tokenAccount,
       owner?.publicKey || provider.wallet.publicKey,
       undefined,
-      TEST_TOKEN_2022_PROGRAM_ID
-    )
+      TEST_TOKEN_2022_PROGRAM_ID,
+    ),
   );
-  return provider.sendAndConfirm(tx, !!owner ? [owner] : [], { commitment: "confirmed" });
+  return provider.sendAndConfirm(tx, !!owner ? [owner] : [], {
+    commitment: "confirmed",
+  });
 }
 
 export async function disableRequiredMemoTransfers(
@@ -703,17 +866,24 @@ export async function disableRequiredMemoTransfers(
       tokenAccount,
       owner?.publicKey || provider.wallet.publicKey,
       undefined,
-      TEST_TOKEN_2022_PROGRAM_ID
-    )
+      TEST_TOKEN_2022_PROGRAM_ID,
+    ),
   );
-  return provider.sendAndConfirm(tx, !!owner ? [owner] : [], { commitment: "confirmed" });
+  return provider.sendAndConfirm(tx, !!owner ? [owner] : [], {
+    commitment: "confirmed",
+  });
 }
 
 export async function isRequiredMemoTransfersEnabled(
   provider: AnchorProvider,
   tokenAccount: web3.PublicKey,
 ) {
-  const account = await getAccount(provider.connection, tokenAccount, "confirmed", TEST_TOKEN_2022_PROGRAM_ID);
+  const account = await getAccount(
+    provider.connection,
+    tokenAccount,
+    "confirmed",
+    TEST_TOKEN_2022_PROGRAM_ID,
+  );
 
   const extensions = getExtensionTypes(account.tlvData);
   if (!extensions.includes(ExtensionType.MemoTransfer)) return false;
@@ -740,7 +910,7 @@ export async function asyncAssertTokenVaultV2(
 export async function asyncAssertOwnerProgram(
   provider: AnchorProvider,
   account: web3.PublicKey,
-  programId: web3.PublicKey
+  programId: web3.PublicKey,
 ) {
   const accountInfo = await provider.connection.getAccountInfo(account);
   assert.ok(accountInfo);
@@ -759,12 +929,12 @@ export async function getExtraAccountMetasForHookProgram(
   const instruction = new TransactionInstruction({
     programId: TEST_TOKEN_2022_PROGRAM_ID,
     keys: [
-      {pubkey: source, isSigner: false, isWritable: false},
-      {pubkey: mint, isSigner: false, isWritable: false},
-      {pubkey: destination, isSigner: false, isWritable: false},
-      {pubkey: owner, isSigner: false, isWritable: false},
-      {pubkey: owner, isSigner: false, isWritable: false},
-    ]
+      { pubkey: source, isSigner: false, isWritable: false },
+      { pubkey: mint, isSigner: false, isWritable: false },
+      { pubkey: destination, isSigner: false, isWritable: false },
+      { pubkey: owner, isSigner: false, isWritable: false },
+      { pubkey: owner, isSigner: false, isWritable: false },
+    ],
   });
 
   await addExtraAccountMetasForExecute(
@@ -776,13 +946,11 @@ export async function getExtraAccountMetasForHookProgram(
     destination,
     owner,
     amount,
-    "confirmed"
+    "confirmed",
   );
 
   const extraAccountMetas = instruction.keys.slice(5);
-  return extraAccountMetas.length > 0
-    ? extraAccountMetas
-    : undefined;
+  return extraAccountMetas.length > 0 ? extraAccountMetas : undefined;
 }
 
 function ceil_div_bn(num: BN, denom: BN): BN {
@@ -792,7 +960,7 @@ function ceil_div_bn(num: BN, denom: BN): BN {
 export function calculateTransferFeeIncludedAmount(
   transferFee: TransferFee,
   amount: BN,
-): { amount: BN, fee: BN } {
+): { amount: BN; fee: BN } {
   // https://github.com/solana-labs/solana-program-library/blob/master/token/program-2022/src/extension/transfer_fee/mod.rs#L90
 
   const ONE_IN_BASIS_POINTS = 10_000;
@@ -827,7 +995,9 @@ export function calculateTransferFeeIncludedAmount(
   // normal case
 
   const num = amount.muln(ONE_IN_BASIS_POINTS);
-  const denom = new BN(ONE_IN_BASIS_POINTS - transferFee.transferFeeBasisPoints);
+  const denom = new BN(
+    ONE_IN_BASIS_POINTS - transferFee.transferFeeBasisPoints,
+  );
   const rawFeeIncludedAmount = ceil_div_bn(num, denom);
 
   if (rawFeeIncludedAmount.sub(amount).gte(maxFeeBN)) {
@@ -854,7 +1024,7 @@ export function calculateTransferFeeIncludedAmount(
 export function calculateTransferFeeExcludedAmount(
   transferFee: TransferFee,
   amount: BN,
-): { amount: BN, fee: BN } {
+): { amount: BN; fee: BN } {
   const fee = calculateFee(transferFee, BigInt(amount.toString()));
   const feeBN = new BN(fee.toString());
   return {
@@ -871,21 +1041,21 @@ export async function mintTokensToTestAccountV2(
   tokenBMint: PublicKey,
   tokenTraitB: TokenTrait,
   tokenMintForB: number,
-  destinationWallet?: PublicKey
+  destinationWallet?: PublicKey,
 ) {
   const userTokenAAccount = await createAndMintToAssociatedTokenAccountV2(
     provider,
     tokenTraitA,
     tokenAMint,
     tokenMintForA,
-    destinationWallet
+    destinationWallet,
   );
   const userTokenBAccount = await createAndMintToAssociatedTokenAccountV2(
     provider,
     tokenTraitB,
     tokenBMint,
     tokenMintForB,
-    destinationWallet
+    destinationWallet,
   );
 
   return [userTokenAAccount, userTokenBAccount];
@@ -897,11 +1067,15 @@ function getAccountLenForMintHack(mintData: Mint): number {
   // spl-token cannot handle ConfidentialTransferFeeConfig yet, so we need to patch...
   // 16: ConfidentialTransferFeeConfig
   if (!extensionTypes.includes(16 as ExtensionType)) {
-    return getAccountLen(extensionTypes);
+    return getAccountLen(extensionTypes.map(getAccountTypeOfMintType));
   }
 
   const confidentialTransferFeeAmountLen = 2 + 2 + 64;
-  return getAccountLen(
-    extensionTypes.filter((type) => type !== 16 as ExtensionType)
-  ) + confidentialTransferFeeAmountLen;
+  return (
+    getAccountLen(
+      extensionTypes
+      .filter((type) => type !== (16 as ExtensionType))
+      .map(getAccountTypeOfMintType),
+    ) + confidentialTransferFeeAmountLen
+  );
 }

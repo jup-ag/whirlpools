@@ -1,0 +1,6 @@
+{
+  "entryPoints": ["../../ts-sdk/whirlpool/src/index.ts"],
+  "entryPointStrategy": "resolve",
+  "githubPages": false,
+  "out": "dist/ts"
+}

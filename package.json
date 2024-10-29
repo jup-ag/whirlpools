@@ -1,48 +1,34 @@
 {
-  "name": "@orca-so/whirlpools",
+  "name": "@orca-so/whirlpools-monorepo",
   "private": true,
-  "license": "Apache-2.0",
-  "packageManager": "yarn@4.3.1",
+  "packageManager": "yarn@4.5.1",
+  "type": "module",
   "scripts": {
     "build": "nx run-many --target build --projects",
+    "start": "nx run-many --target start --projects",
     "test": "nx run-many --target test --projects",
     "format": "nx run-many --target format --projects",
+    "lint": "nx run-many --target lint --projects",
     "clean": "nx reset && nx run-many --target clean --projects",
     "prepare": "husky install"
   },
   "devDependencies": {
-    "@types/bn.js": "~5.1.5",
-    "@types/mocha": "^10.0.7",
-    "@types/node": "^22.2.0",
-    "husky": "^9.1.4",
-    "lint-staged": "^15.2.9",
-    "nx": "^19.5.7",
-    "prettier": "^3.1.1",
-    "rimraf": "^6.0.1"
+    "@types/node": "^22.8.1",
+    "husky": "^9.1.6",
+    "lint-staged": "^15.2.10",
+    "nx": "^20.0.6",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.3.0",
+    "vitest": "^2.1.3"
   },
   "workspaces": [
+    "programs/*",
+    "rust-sdk/*",
+    "ts-sdk/*",
     "legacy-sdk/*",
-    "programs/*"
+    "docs/*"
   ],
   "lint-staged": {
     "*": "yarn format"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/orca-so/whirlpools.git"
-  },
-  "keywords": [
-    "orca_so",
-    "orca",
-    "solana",
-    "typescript",
-    "sdk",
-    "crypto",
-    "dex"
-  ],
-  "author": "team@orca.so",
-  "bugs": {
-    "url": "https://github.com/orca-so/whirlpools/issues"
-  },
-  "homepage": "https://www.orca.so"
+  }
 }

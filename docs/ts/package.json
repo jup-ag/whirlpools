@@ -1,0 +1,16 @@
+{
+  "name": "@orca-so/whirlpools-docs-ts",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "build": "typedoc",
+    "start": "typedoc && open dist/ts/index.html",
+    "clean": "rimraf dist"
+  },
+  "devDependencies": {
+    "@orca-so/whirlpools": "*",
+    "@orca-so/whirlpools-sdk": "*",
+    "typedoc": "^0.26.10",
+    "typescript": "^5.6.3"
+  }
+}

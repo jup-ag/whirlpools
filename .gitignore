@@ -20,3 +20,8 @@ generated
 !.yarn/sdks
 !.yarn/versions
 .nx
+generated
+.docusaurus
+.cache-loader
+.devcontainer
+**/Cargo.lock

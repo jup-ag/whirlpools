@@ -1,9 +1,9 @@
-import { Program } from "@coral-xyz/anchor";
-import { Instruction } from "@orca-so/common-sdk";
+import type { Program } from "@coral-xyz/anchor";
+import type { Instruction } from "@orca-so/common-sdk";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { PublicKey } from "@solana/web3.js";
-import BN from "bn.js";
-import { Whirlpool } from "../artifacts/whirlpool";
+import type { PublicKey } from "@solana/web3.js";
+import type BN from "bn.js";
+import type { Whirlpool } from "../artifacts/whirlpool";
 
 /**
  * Raw parameters and accounts to swap on a Whirlpool
@@ -78,6 +78,10 @@ export type DevFeeSwapInput = SwapInput & {
  * - `TickArrayIndexOutofBounds` - The swap loop attempted to access an invalid array index during tick crossing.
  * - `LiquidityOverflow` - Liquidity value overflowed 128bits during tick crossing.
  * - `InvalidTickSpacing` - The swap pool was initialized with tick-spacing of 0.
+ * - `AmountCalcOverflow` - The required token amount exceeds the u64 range.
+ * - `AmountRemainingOverflow` - Result does not match the specified amount.
+ * - `DifferentWhirlpoolTickArrayAccount` - The provided tick array account does not belong to the whirlpool.
+ * - `PartialFillError` - Partially filled when sqrtPriceLimit = 0 and amountSpecifiedIsInput = false.
  *
  * ### Parameters
  * @category Instructions
@@ -85,7 +89,10 @@ export type DevFeeSwapInput = SwapInput & {
  * @param params - {@link SwapParams}
  * @returns - Instruction to perform the action.
  */
-export function swapIx(program: Program<Whirlpool>, params: SwapParams): Instruction {
+export function swapIx(
+  program: Program<Whirlpool>,
+  params: SwapParams,
+): Instruction {
   const {
     amount,
     otherAmountThreshold,
@@ -124,7 +131,7 @@ export function swapIx(program: Program<Whirlpool>, params: SwapParams): Instruc
         tickArray2,
         oracle,
       },
-    }
+    },
   );
 
   return {

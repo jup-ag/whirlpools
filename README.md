@@ -14,18 +14,17 @@ The contract is deployed using verifiable build, so that you can ensure that the
 The program has been audited several times by different security firms.
 * Jan 28th, 2022 - [Kudelski Security](/.audits/2022-01-28.pdf)
 * May 5th, 2022 - [Neodyme](/.audits/2022-05-05.pdf)
+* Aug 21st, 2024 - [OtterSec](/.audits/2024-08-21.pdf)
 
 ## Usage
 
-***The new whirlpool SDKs are still in development and are not reccomended for production use yet. Please see [Legacy](#legacy)***
+***The new whirlpool SDKs are still in development and are not recommended for production use yet. Please see [Legacy](#legacy)***
 
-This repository contains several libraries that can be used to interact with the Whirlpools contract. For most purposes you can use the full library (`@orca-so/whirlpools` and `orca-whirlpools`).
+This repository contains several libraries that can be used to interact with the Whirlpools contract. For most purposes you can use the full library (`@orca-so/whirlpools` and `orca_whirlpools`).
 
 For specific use-cases you can opt for integrating with lower level packages such as:
-* `@orca-so/whirlpools-client` & `orca-whirlpools-client` - auto-generated client for the Whirlpools program that contains account, instruction and error parsing.
-* `@orca-so/whirlpools-quoting` & `orca-whirlpools-quoting` - math lib used to calculate a quote for a given trade or liquidity action.
-* `@orca-so/whirlpools-composite` & `orca-whirlpools-composite` - helper package for compositing instructions together for executing common actions.
-* `@orca-so/whirlpools-utils` & `orca-whirlpools-utils` - utility and math functions used by other packages.
+* `@orca-so/whirlpools-client` & `orca_whirlpools_client` - auto-generated client for the Whirlpools program that contains account, instruction and error parsing.
+* `@orca-so/whirlpools-core` & `orca_whirlpools_core` - utility, math and quoting functions used by other packages.
 
 ### Legacy
 
@@ -37,8 +36,8 @@ This monorepo contains all the code needed to build, deploy and interact the Whi
 
 ### Requirements
 
-- Anchor 0.29.0
-- Solana 1.17.22
+- Anchor v0.29.0
+- Solana v1.17.22
 
 ### Getting Started
 
@@ -71,9 +70,9 @@ This repository uses NX to manage the Rust and Typescript codebases. This allows
 This repository is split up into sevaral parts. The following is a (non-exhaustive) list of the components and their purpose.
 
 * **`/programs/*`** - Rust programs that are deployed on Solana.
-* **`/ts-sdk/*`** (WIP) - Typescript SDKs for interacting with the programs.
-* **`/rust-sdk/*`** (WIP) - Rust SDKs for interacting with the programs.
-* **`/docs/*`** (WIP) - Documentation for the programs and SDKs.
+* **`/ts-sdk/*`** - Typescript SDKs for interacting with the programs.
+* **`/rust-sdk/*`** - Rust SDKs for interacting with the programs.
+* **`/docs/*`** - Documentation for the programs and SDKs.
 * **`/legacy-sdk/*`** - Legacy Typescript SDKs and integration tests.
 
 ### Commands
@@ -89,8 +88,6 @@ Below is a (non-exhaustive) list of available commands:
 If you look closely, the commands just call individual commands specified in the component's `package.json` file. These commands should not be run by themselves as it will not resolve the right dependencies and will not execute the prerequisites. Instead you can specify which package to run with `yarn build programs/whirlpool`, `yarn test legacy-sdk/whirlpool`, etc.
 
 If you want to stream the logs of a specific command you can add the `--output-style stream` flag to the command. This allows you to view the logs of the command as they are being produced which can be useful for longer running tasks like integration tests.
-
----
 
 # Support
 
