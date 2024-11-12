@@ -15,12 +15,12 @@ default = []
 idl-build = ["anchor-lang/idl-build", "anchor-spl/idl-build"]
 
 [dependencies]
-anchor-lang = "0.29"
-anchor-spl = { version = "0.29", features = ["metadata", "memo"] }
-spl-token = { version = "4", features = ["no-entrypoint"] }
-spl-transfer-hook-interface = { version = "0.5.0" }
-spl-token-metadata-interface = { version = "0.2.0" }
-solana-program = "1.18"
+anchor-lang = { workspace = true }
+anchor-spl = { workspace = true, features = ["metadata", "memo"] }
+spl-token = { version = ">=6", features = ["no-entrypoint"] }
+spl-transfer-hook-interface = { version = ">=0.8" }
+spl-token-metadata-interface = { version = ">=0.5" }
+solana-program = "2"
 thiserror = "1.0"
 uint = { version = "0.9.5", default-features = false }
 borsh = "0.10"
@@ -29,10 +29,6 @@ solana-security-txt = { version = "=1.1.1" }
 bytemuck = { version = "1.16.3", features = ["derive", "min_const_generics"] }
 
 [dev-dependencies]
-proptest = "=1.5.0"
-serde = "=1.0.206"
-serde_json = "=1.0.124"
-
-[dev-dependencies.serde_with]
-version = "=2.3.3"
-features = ["json"]
+proptest = "1.5"
+serde = "1.0"
+serde_json = "1.0"
