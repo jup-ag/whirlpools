@@ -195,8 +195,14 @@ fn compute_swap<const SIZE: usize>(
     let mut current_tick_index = whirlpool.tick_current_index;
     let mut current_liquidity = whirlpool.liquidity;
     let mut trade_fee = 0u64;
+    let mut round = 0;
+    let max_round = 88;
 
     while amount_remaining > 0 && sqrt_price_limit != current_sqrt_price {
+        if round > max_round {
+            break;
+        }
+        round += 1;
         let (next_tick, next_tick_index) = if a_to_b {
             tick_sequence.prev_initialized_tick(current_tick_index)?
         } else {
