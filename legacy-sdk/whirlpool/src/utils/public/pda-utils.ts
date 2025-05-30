@@ -15,6 +15,7 @@ const PDA_POSITION_BUNDLE_SEED = "position_bundle";
 const PDA_BUNDLED_POSITION_SEED = "bundled_position";
 const PDA_CONFIG_EXTENSION_SEED = "config_extension";
 const PDA_TOKEN_BADGE_SEED = "token_badge";
+const PDA_LOCK_CONFIG_SEED = "lock_config";
 
 /**
  * @category Whirlpool Utils
@@ -26,7 +27,7 @@ export class PDAUtil {
    * @param whirlpoolsConfigKey
    * @param tokenMintAKey
    * @param tokenMintBKey
-   * @param tickSpacing
+   * @param feeTierIndex
    * @returns
    */
   public static getWhirlpool(
@@ -34,7 +35,7 @@ export class PDAUtil {
     whirlpoolsConfigKey: PublicKey,
     tokenMintAKey: PublicKey,
     tokenMintBKey: PublicKey,
-    tickSpacing: number,
+    feeTierIndex: number,
   ) {
     return AddressUtil.findProgramAddress(
       [
@@ -42,7 +43,7 @@ export class PDAUtil {
         whirlpoolsConfigKey.toBuffer(),
         tokenMintAKey.toBuffer(),
         tokenMintBKey.toBuffer(),
-        new BN(tickSpacing).toArrayLike(Buffer, "le", 2),
+        new BN(feeTierIndex).toArrayLike(Buffer, "le", 2),
       ],
       programId,
     );
@@ -150,19 +151,19 @@ export class PDAUtil {
    * @category Program Derived Addresses
    * @param programId
    * @param whirlpoolsConfigAddress
-   * @param tickSpacing
+   * @param feeTierIndex
    * @returns
    */
   public static getFeeTier(
     programId: PublicKey,
     whirlpoolsConfigAddress: PublicKey,
-    tickSpacing: number,
+    feeTierIndex: number,
   ) {
     return AddressUtil.findProgramAddress(
       [
         Buffer.from(PDA_FEE_TIER_SEED),
         whirlpoolsConfigAddress.toBuffer(),
-        new BN(tickSpacing).toArrayLike(Buffer, "le", 2),
+        new BN(feeTierIndex).toArrayLike(Buffer, "le", 2),
       ],
       programId,
     );
@@ -272,6 +273,19 @@ export class PDAUtil {
         whirlpoolsConfigAddress.toBuffer(),
         tokenMintKey.toBuffer(),
       ],
+      programId,
+    );
+  }
+
+  /**
+   * @category Program Derived Addresses
+   * @param programId
+   * @param positionKey
+   * @returns
+   */
+  public static getLockConfig(programId: PublicKey, positionKey: PublicKey) {
+    return AddressUtil.findProgramAddress(
+      [Buffer.from(PDA_LOCK_CONFIG_SEED), positionKey.toBuffer()],
       programId,
     );
   }

@@ -15,8 +15,11 @@ import type {
   GetMultipleAccountsApi,
   Address,
   GetProgramAccountsApi,
-} from "@solana/web3.js";
+} from "@solana/kit";
 import { SPLASH_POOL_TICK_SPACING, WHIRLPOOLS_CONFIG_ADDRESS } from "./config";
+import { orderMints } from "./token";
+import { sqrtPriceToPrice } from "@orca-so/whirlpools-core";
+import { fetchAllMint } from "@solana-program/token";
 
 /**
  * Type representing a pool that is not yet initialized.
@@ -41,6 +44,7 @@ export type InitializablePool = {
 export type InitializedPool = {
   /** Indicates the pool is initialized. */
   initialized: true;
+  price: number;
 } & Whirlpool;
 
 /**
@@ -60,24 +64,28 @@ export type PoolInfo = (InitializablePool | InitializedPool) & {
  * @returns {Promise<PoolInfo>} - A promise that resolves to the pool information, which includes whether the pool is initialized or not.
  *
  * @example
- * import { fetchSplashPool } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { fetchSplashPool, setWhirlpoolsConfig } from '@orca-so/whirlpools';
+ * import { createSolanaRpc, devnet, address } from '@solana/kit';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
- *
- * const tokenMintOne = "TOKEN_MINT_ONE";
- * const tokenMintTwo = "TOKEN_MINT_TWO";
+ * const tokenMintOne = address("So11111111111111111111111111111111111111112");
+ * const tokenMintTwo = address("BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k"); //devUSDC
  *
  * const poolInfo = await fetchSplashPool(
  *   devnetRpc,
  *   tokenMintOne,
  *   tokenMintTwo
  * );
+ *
+ * if (poolInfo.initialized) {
+ *   console.log("Pool is initialized:", poolInfo);
+ * } else {
+ *   console.log("Pool is not initialized:", poolInfo);
+ * };
  */
 export async function fetchSplashPool(
-  rpc: Rpc<GetAccountInfoApi>,
+  rpc: Rpc<GetAccountInfoApi & GetMultipleAccountsApi>,
   tokenMintOne: Address,
   tokenMintTwo: Address,
 ): Promise<PoolInfo> {
@@ -99,34 +107,36 @@ export async function fetchSplashPool(
  * @returns {Promise<PoolInfo>} - A promise that resolves to the pool information, which includes whether the pool is initialized or not.
  *
  * @example
- * import { fetchPool } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { fetchConcentratedLiquidityPool, setWhirlpoolsConfig } from '@orca-so/whirlpools';
+ * import { createSolanaRpc, devnet, address } from '@solana/kit';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
  *
- * const tokenMintOne = "TOKEN_MINT_ONE";
- * const tokenMintTwo = "TOKEN_MINT_TWO";
+ * const tokenMintOne = address("So11111111111111111111111111111111111111112");
+ * const tokenMintTwo = address("BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k");
  * const tickSpacing = 64;
  *
- * const poolInfo = await fetchPool(
+ * const poolInfo = await fetchConcentratedLiquidityPool(
  *   devnetRpc,
  *   tokenMintOne,
  *   tokenMintTwo,
  *   tickSpacing
  * );
+ *
+ * if (poolInfo.initialized) {
+ *   console.log("Pool is initialized:", poolInfo);
+ * } else {
+ *   console.log("Pool is not initialized:", poolInfo);
+ * };
  */
 export async function fetchConcentratedLiquidityPool(
-  rpc: Rpc<GetAccountInfoApi>,
+  rpc: Rpc<GetAccountInfoApi & GetMultipleAccountsApi>,
   tokenMintOne: Address,
   tokenMintTwo: Address,
   tickSpacing: number,
 ): Promise<PoolInfo> {
-  const [tokenMintA, tokenMintB] =
-    Buffer.from(tokenMintOne) < Buffer.from(tokenMintTwo)
-      ? [tokenMintOne, tokenMintTwo]
-      : [tokenMintTwo, tokenMintOne];
+  const [tokenMintA, tokenMintB] = orderMints(tokenMintOne, tokenMintTwo);
   const feeTierAddress = await getFeeTierAddress(
     WHIRLPOOLS_CONFIG_ADDRESS,
     tickSpacing,
@@ -145,10 +155,18 @@ export async function fetchConcentratedLiquidityPool(
     fetchMaybeWhirlpool(rpc, poolAddress),
   ]);
 
+  const [mintA, mintB] = await fetchAllMint(rpc, [tokenMintA, tokenMintB]);
+
   if (poolAccount.exists) {
+    const poolPrice = sqrtPriceToPrice(
+      poolAccount.data.sqrtPrice,
+      mintA.data.decimals,
+      mintB.data.decimals,
+    );
     return {
       initialized: true,
       address: poolAddress,
+      price: poolPrice,
       ...poolAccount.data,
     };
   } else {
@@ -175,32 +193,35 @@ export async function fetchConcentratedLiquidityPool(
  * @returns {Promise<PoolInfo[]>} - A promise that resolves to an array of pool information for each pool between the two tokens.
  *
  * @example
- * import { fetchWhirlpools } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { fetchWhirlpoolsByTokenPair, setWhirlpoolsConfig } from '@orca-so/whirlpools';
+ * import { createSolanaRpc, devnet, address } from '@solana/kit';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
  *
- * const tokenMintOne = "TOKEN_MINT_ONE";
- * const tokenMintTwo = "TOKEN_MINT_TWO";
+ * const tokenMintOne = address("So11111111111111111111111111111111111111112");
+ * const tokenMintTwo = address("BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k");
  *
- * const pools = await fetchWhirlpools(
+ * const poolInfos = await fetchWhirlpoolsByTokenPair(
  *   devnetRpc,
  *   tokenMintOne,
  *   tokenMintTwo
  * );
+ *
+ * poolInfos.forEach((poolInfo) => {
+ *   if (poolInfo.initialized) {
+ *     console.log("Pool is initialized:", poolInfo);
+ *   } else {
+ *     console.log("Pool is not initialized:", poolInfo);
+ *   }
+ * });
  */
-export async function fetchWhirlpools(
+export async function fetchWhirlpoolsByTokenPair(
   rpc: Rpc<GetAccountInfoApi & GetMultipleAccountsApi & GetProgramAccountsApi>,
   tokenMintOne: Address,
   tokenMintTwo: Address,
 ): Promise<PoolInfo[]> {
-  const [tokenMintA, tokenMintB] =
-    Buffer.from(tokenMintOne) < Buffer.from(tokenMintTwo)
-      ? [tokenMintOne, tokenMintTwo]
-      : [tokenMintTwo, tokenMintOne];
-
+  const [tokenMintA, tokenMintB] = orderMints(tokenMintOne, tokenMintTwo);
   const feeTierAccounts = await fetchAllFeeTierWithFilter(
     rpc,
     feeTierWhirlpoolsConfigFilter(WHIRLPOOLS_CONFIG_ADDRESS),
@@ -225,6 +246,8 @@ export async function fetchWhirlpools(
     fetchAllMaybeWhirlpool(rpc, poolAddresses),
   ]);
 
+  const [mintA, mintB] = await fetchAllMint(rpc, [tokenMintA, tokenMintB]);
+
   const pools: PoolInfo[] = [];
   for (let i = 0; i < supportedTickSpacings.length; i++) {
     const tickSpacing = supportedTickSpacings[i];
@@ -233,9 +256,15 @@ export async function fetchWhirlpools(
     const poolAddress = poolAddresses[i];
 
     if (poolAccount.exists) {
+      const poolPrice = sqrtPriceToPrice(
+        poolAccount.data.sqrtPrice,
+        mintA.data.decimals,
+        mintB.data.decimals,
+      );
       pools.push({
         initialized: true,
         address: poolAddress,
+        price: poolPrice,
         ...poolAccount.data,
       });
     } else {

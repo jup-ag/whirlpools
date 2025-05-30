@@ -19,8 +19,16 @@ import {
 import { defaultConfirmOptions } from "../../utils/const";
 import { buildTestPoolParams, initTestPool } from "../../utils/init-utils";
 import { buildTestPoolV2Params } from "../../utils/v2/init-utils-v2";
-import { getMint, getTransferFeeConfig, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import { initPosition, mintTokensToTestAccount } from "../../utils/test-builders";
+import {
+  getMint,
+  getTransferFeeConfig,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
+import {
+  initPosition,
+  mintTokensToTestAccount,
+} from "../../utils/test-builders";
 
 describe("whirlpool-client-impl", () => {
   const provider = anchor.AnchorProvider.local(
@@ -54,9 +62,8 @@ describe("whirlpool-client-impl", () => {
         )
       ).poolInitInfo;
 
-      const initalTick = TickUtil.getInitializableTickIndex(
-        PriceMath.sqrtPriceX64ToTickIndex(poolInitInfo.initSqrtPrice),
-        poolInitInfo.tickSpacing,
+      const initialTick = PriceMath.sqrtPriceX64ToTickIndex(
+        poolInitInfo.initSqrtPrice,
       );
 
       const { poolKey: actualPubkey, tx } = await client.createPool(
@@ -64,7 +71,7 @@ describe("whirlpool-client-impl", () => {
         poolInitInfo.tokenMintA,
         poolInitInfo.tokenMintB,
         poolInitInfo.tickSpacing,
-        initalTick,
+        initialTick,
         funderKeypair.publicKey,
       );
 
@@ -77,7 +84,7 @@ describe("whirlpool-client-impl", () => {
       );
 
       const startTickArrayPda = PDAUtil.getTickArrayFromTickIndex(
-        initalTick,
+        initialTick,
         poolInitInfo.tickSpacing,
         expectedPda.publicKey,
         ctx.program.programId,
@@ -115,10 +122,10 @@ describe("whirlpool-client-impl", () => {
       assert.ok(whirlpoolAccountAfter.rewardLastUpdatedTimestamp.eqn(0));
       assert.ok(
         whirlpoolAccountAfter.sqrtPrice.eq(
-          PriceMath.tickIndexToSqrtPriceX64(initalTick),
+          PriceMath.tickIndexToSqrtPriceX64(initialTick),
         ),
       );
-      assert.ok(whirlpoolAccountAfter.tickCurrentIndex === initalTick);
+      assert.ok(whirlpoolAccountAfter.tickCurrentIndex === initialTick);
       assert.ok(whirlpoolAccountAfter.tickSpacing === poolInitInfo.tickSpacing);
       assert.ok(
         whirlpoolAccountAfter.tokenMintA.equals(poolInitInfo.tokenMintA),
@@ -135,7 +142,7 @@ describe("whirlpool-client-impl", () => {
 
       assert.ok(
         tickArrayAccountAfter.startTickIndex ===
-          TickUtil.getStartTickIndex(initalTick, poolInitInfo.tickSpacing),
+          TickUtil.getStartTickIndex(initialTick, poolInitInfo.tickSpacing),
       );
       assert.ok(tickArrayAccountAfter.ticks.length > 0);
       assert.ok(tickArrayAccountAfter.whirlpool.equals(expectedPda.publicKey));
@@ -152,11 +159,9 @@ describe("whirlpool-client-impl", () => {
         )
       ).poolInitInfo;
 
-      const initalTick = TickUtil.getInitializableTickIndex(
-        PriceMath.sqrtPriceX64ToTickIndex(poolInitInfo.initSqrtPrice),
-        poolInitInfo.tickSpacing,
+      const initalTick = PriceMath.sqrtPriceX64ToTickIndex(
+        poolInitInfo.initSqrtPrice,
       );
-
       const invInitialTick = TickUtil.invertTick(initalTick);
 
       await assert.rejects(
@@ -368,9 +373,8 @@ describe("whirlpool-client-impl", () => {
       assert.ok(transferFeeConfigA !== null);
       assert.ok(transferFeeConfigB !== null);
 
-      const initalTick = TickUtil.getInitializableTickIndex(
-        PriceMath.sqrtPriceX64ToTickIndex(poolInitInfo.initSqrtPrice),
-        poolInitInfo.tickSpacing,
+      const initialTick = PriceMath.sqrtPriceX64ToTickIndex(
+        poolInitInfo.initSqrtPrice,
       );
 
       const { poolKey: actualPubkey, tx } = await client.createPool(
@@ -378,7 +382,7 @@ describe("whirlpool-client-impl", () => {
         poolInitInfo.tokenMintA,
         poolInitInfo.tokenMintB,
         poolInitInfo.tickSpacing,
-        initalTick,
+        initialTick,
         funderKeypair.publicKey,
       );
 
@@ -391,7 +395,7 @@ describe("whirlpool-client-impl", () => {
       );
 
       const startTickArrayPda = PDAUtil.getTickArrayFromTickIndex(
-        initalTick,
+        initialTick,
         poolInitInfo.tickSpacing,
         expectedPda.publicKey,
         ctx.program.programId,
@@ -429,10 +433,10 @@ describe("whirlpool-client-impl", () => {
       assert.ok(whirlpoolAccountAfter.rewardLastUpdatedTimestamp.eqn(0));
       assert.ok(
         whirlpoolAccountAfter.sqrtPrice.eq(
-          PriceMath.tickIndexToSqrtPriceX64(initalTick),
+          PriceMath.tickIndexToSqrtPriceX64(initialTick),
         ),
       );
-      assert.ok(whirlpoolAccountAfter.tickCurrentIndex === initalTick);
+      assert.ok(whirlpoolAccountAfter.tickCurrentIndex === initialTick);
       assert.ok(whirlpoolAccountAfter.tickSpacing === poolInitInfo.tickSpacing);
       assert.ok(
         whirlpoolAccountAfter.tokenMintA.equals(poolInitInfo.tokenMintA),
@@ -449,7 +453,7 @@ describe("whirlpool-client-impl", () => {
 
       assert.ok(
         tickArrayAccountAfter.startTickIndex ===
-          TickUtil.getStartTickIndex(initalTick, poolInitInfo.tickSpacing),
+          TickUtil.getStartTickIndex(initialTick, poolInitInfo.tickSpacing),
       );
       assert.ok(tickArrayAccountAfter.ticks.length > 0);
       assert.ok(tickArrayAccountAfter.whirlpool.equals(expectedPda.publicKey));
@@ -478,9 +482,8 @@ describe("whirlpool-client-impl", () => {
         )
       ).poolInitInfo;
 
-      const initialTick = TickUtil.getInitializableTickIndex(
-        PriceMath.sqrtPriceX64ToTickIndex(poolInitInfo.initSqrtPrice),
-        poolInitInfo.tickSpacing,
+      const initialTick = PriceMath.sqrtPriceX64ToTickIndex(
+        poolInitInfo.initSqrtPrice,
       );
 
       const tx = (
@@ -519,11 +522,9 @@ describe("whirlpool-client-impl", () => {
         )
       ).poolInitInfo;
 
-      const initialTick = TickUtil.getInitializableTickIndex(
-        PriceMath.sqrtPriceX64ToTickIndex(poolInitInfo.initSqrtPrice),
-        poolInitInfo.tickSpacing,
+      const initialTick = PriceMath.sqrtPriceX64ToTickIndex(
+        poolInitInfo.initSqrtPrice,
       );
-
       const invInitialTick = TickUtil.invertTick(initialTick);
 
       await assert.rejects(
@@ -562,9 +563,8 @@ describe("whirlpool-client-impl", () => {
         )
       ).poolInitInfo;
 
-      const initialTick = TickUtil.getInitializableTickIndex(
-        PriceMath.sqrtPriceX64ToTickIndex(poolInitInfo.initSqrtPrice),
-        poolInitInfo.tickSpacing,
+      const initialTick = PriceMath.sqrtPriceX64ToTickIndex(
+        poolInitInfo.initSqrtPrice,
       );
 
       const tx = (
@@ -860,7 +860,7 @@ describe("whirlpool-client-impl", () => {
       poolInitInfo.tokenMintB,
       10_000_000_000,
     );
-    
+
     const pool = await client.getPool(poolInitInfo.whirlpoolPda.publicKey);
     const lowerTick = PriceMath.priceToTickIndex(
       new Decimal(89),
@@ -900,10 +900,20 @@ describe("whirlpool-client-impl", () => {
     );
 
     // check .getPosition
-    const position0 = await client.getPosition(positions[0].positionAddress.publicKey, IGNORE_CACHE);
-    assert.ok(position0.getPositionMintTokenProgramId().equals(TOKEN_2022_PROGRAM_ID));
-    const position1 = await client.getPosition(positions[1].positionAddress.publicKey, IGNORE_CACHE);
-    assert.ok(position1.getPositionMintTokenProgramId().equals(TOKEN_PROGRAM_ID));
+    const position0 = await client.getPosition(
+      positions[0].positionAddress.publicKey,
+      IGNORE_CACHE,
+    );
+    assert.ok(
+      position0.getPositionMintTokenProgramId().equals(TOKEN_2022_PROGRAM_ID),
+    );
+    const position1 = await client.getPosition(
+      positions[1].positionAddress.publicKey,
+      IGNORE_CACHE,
+    );
+    assert.ok(
+      position1.getPositionMintTokenProgramId().equals(TOKEN_PROGRAM_ID),
+    );
 
     // check .getPositions
     const positionsFetched = await client.getPositions(
@@ -911,11 +921,16 @@ describe("whirlpool-client-impl", () => {
       IGNORE_CACHE,
     );
     withTokenExtensions.forEach((withTokenExtension, i) => {
-      const position = positionsFetched[positions[i].positionAddress.publicKey.toBase58()];
+      const position =
+        positionsFetched[positions[i].positionAddress.publicKey.toBase58()];
       assert.ok(!!position);
-      assert.ok(position.getPositionMintTokenProgramId().equals(
-        withTokenExtension ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID,
-      ));
+      assert.ok(
+        position
+          .getPositionMintTokenProgramId()
+          .equals(
+            withTokenExtension ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID,
+          ),
+      );
     });
   });
 });

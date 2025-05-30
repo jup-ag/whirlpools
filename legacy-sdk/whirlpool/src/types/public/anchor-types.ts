@@ -24,6 +24,9 @@ export enum AccountName {
   PositionBundle = "PositionBundle",
   WhirlpoolsConfigExtension = "WhirlpoolsConfigExtension",
   TokenBadge = "TokenBadge",
+  LockConfig = "LockConfig",
+  Oracle = "Oracle",
+  AdaptiveFeeTier = "AdaptiveFeeTier",
 }
 
 export const WHIRLPOOL_IDL = WhirlpoolIDL as Idl;
@@ -58,6 +61,9 @@ const RESERVED_BYTES: ReservedBytes = {
   [AccountName.PositionBundle]: 64,
   [AccountName.WhirlpoolsConfigExtension]: 512,
   [AccountName.TokenBadge]: 128,
+  [AccountName.LockConfig]: 128,
+  [AccountName.Oracle]: 0, // reserved space is occupied as "reserved" field
+  [AccountName.AdaptiveFeeTier]: 128,
 };
 
 type ReservedBytes = {
@@ -122,6 +128,7 @@ export type WhirlpoolData = {
   rewardLastUpdatedTimestamp: BN;
   rewardInfos: WhirlpoolRewardInfoData[];
   tickSpacing: number;
+  feeTierIndexSeed: number[];
 };
 
 /**
@@ -216,4 +223,78 @@ export type WhirlpoolsConfigExtensionData = {
 export type TokenBadgeData = {
   whirlpoolsConfig: PublicKey;
   tokenMint: PublicKey;
+};
+
+/**
+ * @category Solana Accounts
+ */
+export type LockTypeLabelData = { permanent: object };
+
+/**
+ * @category Solana Accounts
+ */
+export type LockTypeData = { permanent: object };
+
+/**
+ * @category Solana Accounts
+ */
+export type LockConfigData = {
+  position: PublicKey;
+  positionOwner: PublicKey;
+  whirlpool: PublicKey;
+  lockType: LockTypeLabelData;
+  lockedTimestamp: BN;
+};
+
+/**
+ * @category Solana Accounts
+ */
+export type AdaptiveFeeTierData = {
+  whirlpoolsConfig: PublicKey;
+  feeTierIndex: number;
+  tickSpacing: number;
+  initializePoolAuthority: PublicKey;
+  delegatedFeeAuthority: PublicKey;
+  defaultBaseFeeRate: number;
+  filterPeriod: number;
+  decayPeriod: number;
+  reductionFactor: number;
+  adaptiveFeeControlFactor: number;
+  maxVolatilityAccumulator: number;
+  tickGroupSize: number;
+  majorSwapThresholdTicks: number;
+};
+
+/**
+ * @category Solana Accounts
+ */
+export type OracleData = {
+  whirlpool: PublicKey;
+  tradeEnableTimestamp: BN;
+  adaptiveFeeConstants: AdaptiveFeeConstantsData;
+  adaptiveFeeVariables: AdaptiveFeeVariablesData;
+};
+
+/**
+ * @category Solana Accounts
+ */
+export type AdaptiveFeeConstantsData = {
+  filterPeriod: number;
+  decayPeriod: number;
+  reductionFactor: number;
+  adaptiveFeeControlFactor: number;
+  maxVolatilityAccumulator: number;
+  tickGroupSize: number;
+  majorSwapThresholdTicks: number;
+};
+
+/**
+ * @category Solana Accounts
+ */
+export type AdaptiveFeeVariablesData = {
+  lastReferenceUpdateTimestamp: BN;
+  lastMajorSwapTimestamp: BN;
+  volatilityReference: number;
+  tickGroupIndexReference: number;
+  volatilityAccumulator: number;
 };

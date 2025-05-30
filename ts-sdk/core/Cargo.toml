@@ -1,6 +1,6 @@
 [package]
 name = "orca_whirlpools_core_js_bindings"
-version = "0.1.0"
+version = "2.0.0"
 publish = false
 edition = "2021"
 
@@ -12,3 +12,4 @@ orca_whirlpools_core = { path = "../../rust-sdk/core", features = ["wasm", "floa
 
 [profile.release]
 opt-level = "s"
+strip = true

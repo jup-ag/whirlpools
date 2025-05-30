@@ -17,8 +17,9 @@ import type {
   GetMultipleAccountsApi,
   GetMinimumBalanceForRentExemptionApi,
   GetEpochInfoApi,
-} from "@solana/web3.js";
-import { DEFAULT_ADDRESS, FUNDER } from "./config";
+  Signature,
+} from "@solana/kit";
+import { DEFAULT_ADDRESS, FUNDER, getPayer, getRpcConfig } from "./config";
 import {
   fetchAllTickArray,
   fetchPosition,
@@ -37,6 +38,12 @@ import {
 import { fetchAllMaybeMint } from "@solana-program/token-2022";
 import { MEMO_PROGRAM_ADDRESS } from "@solana-program/memo";
 import assert from "assert";
+import {
+  wouldExceedTransactionSize,
+  wrapFunctionWithExecution,
+} from "./actionHelpers";
+import { rpcFromUrl, buildAndSendTransaction } from "@orca-so/tx-sender";
+import { fetchPositionsForOwner } from "./position";
 
 // TODO: Transfer hook
 
@@ -68,20 +75,23 @@ export type HarvestPositionInstructions = {
  * @returns {Promise<HarvestPositionInstructions>}
  *    A promise that resolves to an object containing the instructions, fees, and rewards quotes.
  * @example
- * import { harvestPositionInstructions } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { harvestPositionInstructions, setWhirlpoolsConfig } from '@orca-so/whirlpools';
+ * import { createSolanaRpc, devnet, address } from '@solana/kit';
+ * import { loadWallet } from './utils';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
- *
- * const positionMint = "POSITION_MINT";
+ * const wallet = await loadWallet();
+ * const positionMint = address("HqoV7Qv27REUtmd9UKSJGGmCRNx3531t33bDG1BUfo9K");
  *
  * const { feesQuote, rewardsQuote, instructions } = await harvestPositionInstructions(
  *   devnetRpc,
  *   positionMint,
  *   wallet
  * );
+ *
+ * console.log(`Fees owed token A: ${feesQuote.feeOwedA}`);
+ * console.log(`Rewards '1' owed: ${rewardsQuote.rewards[0].rewardsOwed}`);
  */
 export async function harvestPositionInstructions(
   rpc: Rpc<
@@ -184,23 +194,24 @@ export async function harvestPositionInstructions(
     getCurrentTransferFee(rewardMints[2], currentEpoch.epoch),
   );
 
-  const requiredMints: Address[] = [];
+  const requiredMints: Set<Address> = new Set();
   if (feesQuote.feeOwedA > 0n || feesQuote.feeOwedB > 0n) {
-    requiredMints.push(whirlpool.data.tokenMintA);
-    requiredMints.push(whirlpool.data.tokenMintB);
+    requiredMints.add(whirlpool.data.tokenMintA);
+    requiredMints.add(whirlpool.data.tokenMintB);
   }
-  if (rewardsQuote.rewards[0].rewardsOwed > 0n) {
-    requiredMints.push(whirlpool.data.rewardInfos[0].mint);
-  }
-  if (rewardsQuote.rewards[1].rewardsOwed > 0n) {
-    requiredMints.push(whirlpool.data.rewardInfos[1].mint);
-  }
-  if (rewardsQuote.rewards[2].rewardsOwed > 0n) {
-    requiredMints.push(whirlpool.data.rewardInfos[2].mint);
+
+  for (let i = 0; i < rewardsQuote.rewards.length; i++) {
+    if (rewardsQuote.rewards[i].rewardsOwed > 0n) {
+      requiredMints.add(whirlpool.data.rewardInfos[i].mint);
+    }
   }
 
   const { createInstructions, cleanupInstructions, tokenAccountAddresses } =
-    await prepareTokenAccountsInstructions(rpc, authority, requiredMints);
+    await prepareTokenAccountsInstructions(
+      rpc,
+      authority,
+      Array.from(requiredMints),
+    );
 
   const instructions: IInstruction[] = [];
   instructions.push(...createInstructions);
@@ -267,4 +278,41 @@ export async function harvestPositionInstructions(
     rewardsQuote,
     instructions,
   };
+}
+
+// -------- ACTIONS --------
+
+export const harvestPosition = wrapFunctionWithExecution(
+  harvestPositionInstructions,
+);
+
+export async function harvestAllPositionFees(): Promise<Signature[]> {
+  const { rpcUrl } = getRpcConfig();
+  const rpc = rpcFromUrl(rpcUrl);
+  const owner = getPayer();
+
+  const positions = await fetchPositionsForOwner(rpc, owner.address);
+  const instructionSets: IInstruction[][] = [];
+  let currentInstructions: IInstruction[] = [];
+  for (const position of positions) {
+    if ("positionMint" in position.data) {
+      const { instructions } = await harvestPositionInstructions(
+        rpc,
+        position.data.positionMint,
+        owner,
+      );
+      if (await wouldExceedTransactionSize(currentInstructions, instructions)) {
+        instructionSets.push(currentInstructions);
+        currentInstructions = [...instructions];
+      } else {
+        currentInstructions.push(...instructions);
+      }
+    }
+  }
+  return Promise.all(
+    instructionSets.map(async (instructions) => {
+      let txHash = await buildAndSendTransaction(instructions, owner);
+      return txHash;
+    }),
+  );
 }

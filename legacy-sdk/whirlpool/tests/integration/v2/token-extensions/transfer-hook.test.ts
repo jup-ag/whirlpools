@@ -17,6 +17,7 @@ import {
   collectRewardsQuote,
   decreaseLiquidityQuoteByLiquidityWithParams,
   MEMO_PROGRAM_ADDRESS,
+  NO_ORACLE_DATA,
   NUM_REWARDS,
   PDAUtil,
   PoolUtil,
@@ -323,8 +324,8 @@ describe("TokenExtension/TransferHook", () => {
           tokenTransferHookAccountsB, // TransferHook
         }),
       )
-      .prependInstruction(useMaxCU())
-      .buildAndExecute();
+        .prependInstruction(useMaxCU())
+        .buildAndExecute();
       const feeBalanceA = await getTokenBalance(provider, feeAccountA);
       const feeBalanceB = await getTokenBalance(provider, feeAccountB);
       assert.ok(new BN(feeBalanceA).gtn(0));
@@ -387,8 +388,8 @@ describe("TokenExtension/TransferHook", () => {
           tokenTransferHookAccountsB: undefined, // TransferHook
         }),
       )
-      .prependInstruction(useMaxCU())
-      .buildAndExecute();
+        .prependInstruction(useMaxCU())
+        .buildAndExecute();
       const feeBalanceA = await getTokenBalance(provider, feeAccountA);
       const feeBalanceB = await getTokenBalance(provider, feeAccountB);
       assert.ok(new BN(feeBalanceA).gtn(0));
@@ -441,8 +442,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -481,8 +482,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB: undefined, // TransferHook (not provided)
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -525,8 +526,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         // Errors on tlv-account-resolution
         // https://github.com/solana-labs/solana-program-library/blob/dbf609206a60ed5698644f4840ddbd117d2c83d8/libraries/tlv-account-resolution/src/error.rs#L6
         /0xa261c2c0/, // IncorrectAccount (2724315840)
@@ -576,8 +577,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         // Errors on tlv-account-resolution
         // https://github.com/solana-labs/solana-program-library/blob/dbf609206a60ed5698644f4840ddbd117d2c83d8/libraries/tlv-account-resolution/src/error.rs#L6
         /0xa261c2c0/, // IncorrectAccount (2724315840)
@@ -627,8 +628,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         // Errors on transfer-hook-interface
         // https://github.com/solana-labs/solana-program-library/blob/dbf609206a60ed5698644f4840ddbd117d2c83d8/token/transfer-hook/interface/src/error.rs#L6
         /0x7dc8348c/, // IncorrectAccount (2110272652)
@@ -673,8 +674,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         // Errors on transfer-hook-interface
         // https://github.com/solana-labs/solana-program-library/blob/dbf609206a60ed5698644f4840ddbd117d2c83d8/token/transfer-hook/interface/src/error.rs#L6
         /0x7dc8348c/, // IncorrectAccount (2110272652)
@@ -737,8 +738,8 @@ describe("TokenExtension/TransferHook", () => {
           cleanupInstructions: [],
           signers: [],
         })
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a0/, // RemainingAccountsInvalidSlice
       );
     });
@@ -799,8 +800,8 @@ describe("TokenExtension/TransferHook", () => {
           cleanupInstructions: [],
           signers: [],
         })
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a1/, // RemainingAccountsInsufficient
       );
     });
@@ -861,8 +862,8 @@ describe("TokenExtension/TransferHook", () => {
           cleanupInstructions: [],
           signers: [],
         })
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a5/, // RemainingAccountsDuplicatedAccountsType
       );
     });
@@ -923,8 +924,8 @@ describe("TokenExtension/TransferHook", () => {
           cleanupInstructions: [],
           signers: [],
         })
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a5/, // RemainingAccountsDuplicatedAccountsType
       );
     });
@@ -1144,8 +1145,8 @@ describe("TokenExtension/TransferHook", () => {
           tickArrayUpper: positions[0].tickArrayUpper,
         }),
       )
-      .prependInstruction(useMaxCU())
-      .buildAndExecute();
+        .prependInstruction(useMaxCU())
+        .buildAndExecute();
 
       // Generate collect reward expectation
       const whirlpoolData = (await fetcher.getPool(
@@ -1194,7 +1195,7 @@ describe("TokenExtension/TransferHook", () => {
             reward.rewardMint,
             reward.rewardVaultKeypair.publicKey,
             rewardAccounts[i],
-            whirlpoolPda.publicKey,  
+            whirlpoolPda.publicKey,
           );
         }),
       );
@@ -1228,8 +1229,8 @@ describe("TokenExtension/TransferHook", () => {
             rewardTransferHookAccounts: tokenTransferHookAccounts[i], // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute();
+          .prependInstruction(useMaxCU())
+          .buildAndExecute();
         const rewardBalance = await getTokenBalance(
           provider,
           rewardAccounts[i],
@@ -1270,8 +1271,8 @@ describe("TokenExtension/TransferHook", () => {
               rewardTransferHookAccounts: undefined, // TransferHook (not provided)
             }),
           )
-          .prependInstruction(useMaxCU())
-          .buildAndExecute(),
+            .prependInstruction(useMaxCU())
+            .buildAndExecute(),
           /0x17a2/, // NoExtraAccountsForTransferHook
         );
       }
@@ -1323,8 +1324,8 @@ describe("TokenExtension/TransferHook", () => {
             cleanupInstructions: [],
             signers: [],
           })
-          .prependInstruction(useMaxCU())
-          .buildAndExecute(),
+            .prependInstruction(useMaxCU())
+            .buildAndExecute(),
           /0x17a5/, // RemainingAccountsDuplicatedAccountsType
         );
       }
@@ -1428,8 +1429,8 @@ describe("TokenExtension/TransferHook", () => {
           tokenTransferHookAccountsB, // TransferHook
         }),
       )
-      .prependInstruction(useMaxCU())
-      .buildAndExecute();
+        .prependInstruction(useMaxCU())
+        .buildAndExecute();
 
       const postVaultBalanceA = await getTokenBalance(
         provider,
@@ -1520,8 +1521,8 @@ describe("TokenExtension/TransferHook", () => {
           tokenTransferHookAccountsB: undefined, // TransferHook
         }),
       )
-      .prependInstruction(useMaxCU())
-      .buildAndExecute();
+        .prependInstruction(useMaxCU())
+        .buildAndExecute();
 
       const postVaultBalanceA = await getTokenBalance(
         provider,
@@ -1584,8 +1585,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -1628,8 +1629,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB: undefined, // TransferHook (not provided)
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -1676,8 +1677,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         // Errors on tlv-account-resolution
         // https://github.com/solana-labs/solana-program-library/blob/dbf609206a60ed5698644f4840ddbd117d2c83d8/libraries/tlv-account-resolution/src/error.rs#L6
         /0xa261c2c0/, // IncorrectAccount (2724315840)
@@ -1731,8 +1732,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         // Errors on tlv-account-resolution
         // https://github.com/solana-labs/solana-program-library/blob/dbf609206a60ed5698644f4840ddbd117d2c83d8/libraries/tlv-account-resolution/src/error.rs#L6
         /0xa261c2c0/, // IncorrectAccount (2724315840)
@@ -1786,8 +1787,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         // Errors on transfer-hook-interface
         // https://github.com/solana-labs/solana-program-library/blob/dbf609206a60ed5698644f4840ddbd117d2c83d8/token/transfer-hook/interface/src/error.rs#L6
         /0x7dc8348c/, // IncorrectAccount (2110272652)
@@ -1836,8 +1837,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         // Errors on transfer-hook-interface
         // https://github.com/solana-labs/solana-program-library/blob/dbf609206a60ed5698644f4840ddbd117d2c83d8/token/transfer-hook/interface/src/error.rs#L6
         /0x7dc8348c/, // IncorrectAccount (2110272652)
@@ -1961,8 +1962,8 @@ describe("TokenExtension/TransferHook", () => {
           tokenTransferHookAccountsB, // TransferHook
         }),
       )
-      .prependInstruction(useMaxCU())
-      .buildAndExecute();
+        .prependInstruction(useMaxCU())
+        .buildAndExecute();
       const destBalanceA = await getTokenBalance(provider, destAccountA);
       const destBalanceB = await getTokenBalance(provider, destAccountB);
       assert.ok(new BN(destBalanceA).gtn(0));
@@ -2006,8 +2007,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -2038,8 +2039,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB: undefined, // TransferHook (not provided)
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -2130,6 +2131,7 @@ describe("TokenExtension/TransferHook", () => {
               whirlpoolData,
               IGNORE_CACHE,
             ),
+          oracleData: NO_ORACLE_DATA,
         },
         Percentage.fromFraction(100, 100), // 100% slippage
       );
@@ -2157,6 +2159,7 @@ describe("TokenExtension/TransferHook", () => {
               whirlpoolData,
               IGNORE_CACHE,
             ),
+          oracleData: NO_ORACLE_DATA,
         },
         Percentage.fromFraction(100, 100), // 100% slippage
       );
@@ -2229,8 +2232,8 @@ describe("TokenExtension/TransferHook", () => {
           tokenTransferHookAccountsB: tokenTransferHookAccountsBForAToB, // TransferHook
         }),
       )
-      .prependInstruction(useMaxCU())
-      .buildAndExecute();
+        .prependInstruction(useMaxCU())
+        .buildAndExecute();
 
       const postCounterA = await getTestTransferHookCounter(
         provider,
@@ -2273,8 +2276,8 @@ describe("TokenExtension/TransferHook", () => {
           tokenTransferHookAccountsB: tokenTransferHookAccountsBForBToA, // TransferHook
         }),
       )
-      .prependInstruction(useMaxCU())
-      .buildAndExecute();
+        .prependInstruction(useMaxCU())
+        .buildAndExecute();
 
       const postCounterA = await getTestTransferHookCounter(
         provider,
@@ -2309,8 +2312,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB: tokenTransferHookAccountsBForAToB, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -2336,8 +2339,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB: undefined, // TransferHook (not provided)
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -2363,8 +2366,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB: tokenTransferHookAccountsBForBToA, // TransferHook
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -2390,8 +2393,8 @@ describe("TokenExtension/TransferHook", () => {
             tokenTransferHookAccountsB: undefined, // TransferHook (not provided)
           }),
         )
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a2/, // NoExtraAccountsForTransferHook
       );
     });
@@ -2484,6 +2487,7 @@ describe("TokenExtension/TransferHook", () => {
               whirlpoolDataOne,
               IGNORE_CACHE,
             ),
+          oracleData: NO_ORACLE_DATA,
         },
         Percentage.fromFraction(1, 100),
       );
@@ -2512,6 +2516,7 @@ describe("TokenExtension/TransferHook", () => {
               whirlpoolDataTwo,
               IGNORE_CACHE,
             ),
+          oracleData: NO_ORACLE_DATA,
         },
         Percentage.fromFraction(1, 100),
       );
@@ -2814,8 +2819,8 @@ describe("TokenExtension/TransferHook", () => {
           cleanupInstructions: [],
           signers: [],
         })
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a5/, // RemainingAccountsDuplicatedAccountsType
       );
     });
@@ -2866,8 +2871,8 @@ describe("TokenExtension/TransferHook", () => {
           cleanupInstructions: [],
           signers: [],
         })
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a5/, // RemainingAccountsDuplicatedAccountsType
       );
     });
@@ -2918,8 +2923,8 @@ describe("TokenExtension/TransferHook", () => {
           cleanupInstructions: [],
           signers: [],
         })
-        .prependInstruction(useMaxCU())
-        .buildAndExecute(),
+          .prependInstruction(useMaxCU())
+          .buildAndExecute(),
         /0x17a5/, // RemainingAccountsDuplicatedAccountsType
       );
     });
@@ -2997,6 +3002,7 @@ describe("TokenExtension/TransferHook", () => {
                 whirlpoolData,
                 IGNORE_CACHE,
               ),
+            oracleData: NO_ORACLE_DATA,
           },
           Percentage.fromFraction(1, 100),
         );
@@ -3037,8 +3043,8 @@ describe("TokenExtension/TransferHook", () => {
               tokenTransferHookAccountsB,
             }),
           )
-          .prependInstruction(useMaxCU())
-          .buildAndExecute(),
+            .prependInstruction(useMaxCU())
+            .buildAndExecute(),
           (err) => {
             // error code is 0x1770 from transfer hook program and it is ambiguous, so use message string
             return JSON.stringify(err).includes("AmountTooBig");
@@ -3118,6 +3124,7 @@ describe("TokenExtension/TransferHook", () => {
                 whirlpoolData,
                 IGNORE_CACHE,
               ),
+            oracleData: NO_ORACLE_DATA,
           },
           Percentage.fromFraction(1, 100),
         );
@@ -3158,8 +3165,8 @@ describe("TokenExtension/TransferHook", () => {
               tokenTransferHookAccountsB,
             }),
           )
-          .prependInstruction(useMaxCU())
-          .buildAndExecute(),
+            .prependInstruction(useMaxCU())
+            .buildAndExecute(),
           (err) => {
             // error code is 0x1770 from transfer hook program and it is ambiguous, so use message string
             return JSON.stringify(err).includes("AmountTooBig");

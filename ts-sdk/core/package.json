@@ -1,40 +1,38 @@
 {
   "name": "@orca-so/whirlpools-core",
   "description": "Orca's core typescript package.",
-  "version": "0.0.1",
+  "version": "2.0.0",
   "main": "./dist/nodejs/orca_whirlpools_core_js_bindings.js",
   "types": "./dist/nodejs/orca_whirlpools_core_js_bindings.d.ts",
-  "browser": "./dist/web/orca_whirlpools_core_js_bindings.js",
+  "browser": "./dist/browser/orca_whirlpools_core_js_bindings.js",
   "type": "module",
   "sideEffects": [
-    "./dist/web/snippets/*"
+    "./dist/browser/snippets/*",
+    "./dist/browser/orca_whirlpools_core_js_bindings.js"
   ],
   "files": [
-    "dist/nodejs/orca_whirlpools_core_js_bindings_bg.wasm",
-    "dist/nodejs/orca_whirlpools_core_js_bindings.js",
-    "dist/nodejs/orca_whirlpools_core_js_bindings.d.ts",
-    "dist/web/orca_whirlpools_core_js_bindings_bg.wasm",
-    "dist/web/orca_whirlpools_core_js_bindings.js",
-    "dist/web/orca_whirlpools_core_js_bindings.d.ts",
-    "README.md"
+    "dist",
+    "README.md",
+    "../../LICENSE"
   ],
   "scripts": {
-    "build": "wasm-pack build --out-dir ./dist/web --target web && wasm-pack build --out-dir ./dist/nodejs --target nodejs",
+    "build": "wasm-pack build --release --out-dir ./dist/nodejs --target nodejs && wasm-pack build --release --out-dir ./dist/browser --target browser",
     "test": "tsc --noEmit && vitest run tests",
-    "clean": "cargo clean && rimraf dist",
-    "prepublishOnly": "rimraf dist/web/.gitignore dist/nodejs/.gitignore"
+    "prepublishOnly": "rimraf dist/nodejs/.gitignore dist/browser/.gitignore",
+    "deploy": "../../scripts/deploy-npm",
+    "clean": "cargo clean && rimraf dist"
   },
   "devDependencies": {
     "@orca-so/whirlpools-client": "*",
     "@orca-so/whirlpools-rust-core": "*",
-    "typescript": "^5.6.3",
-    "wasm-pack": "^0.13.0"
+    "typescript": "^5.8.2",
+    "wasm-pack": "^0.13.1"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/orca-so/whirlpools.git"
   },
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN LICENSE",
   "keywords": [
     "solana",
     "crypto",

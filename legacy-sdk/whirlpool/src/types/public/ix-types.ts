@@ -31,6 +31,9 @@ export type {
   DeletePositionBundleParams,
   OpenBundledPositionParams,
   CloseBundledPositionParams,
+  OpenPositionWithTokenExtensionsParams,
+  ClosePositionWithTokenExtensionsParams,
+  LockPositionParams,
 } from "../../instructions";
 export type {
   CollectFeesV2Params,
@@ -54,3 +57,12 @@ export type {
   CollectAllPositionAddressParams,
   CollectAllPositionParams,
 } from "../../instructions/composites";
+export type {
+  InitializeAdaptiveFeeTierParams,
+  InitPoolWithAdaptiveFeeParams,
+  SetDefaultBaseFeeRateParams,
+  SetDelegatedFeeAuthorityParams,
+  SetFeeRateByDelegatedFeeAuthorityParams,
+  SetInitializePoolAuthorityParams,
+  SetPresetAdaptiveFeeConstantsParams,
+} from "../../instructions/adaptive-fee";

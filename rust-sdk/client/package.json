@@ -1,18 +1,20 @@
 {
   "name": "@orca-so/whirlpools-rust-client",
-  "version": "0.0.1",
+  "version": "3.0.0",
   "type": "module",
   "scripts": {
-    "build": "node ./kinobi.js && cargo build",
+    "build": "node ./codama.js && cargo build",
     "test": "cargo test --lib",
+    "deploy": "../../scripts/deploy-cargo",
     "format": "cargo clippy --fix --allow-dirty --allow-staged && cargo fmt",
-    "lint": "cargo clippy",
+    "lint": "cargo clippy && cargo fmt --check",
     "clean": "cargo clean"
   },
   "devDependencies": {
-    "@kinobi-so/nodes-from-anchor": "^0.22.0",
-    "@kinobi-so/renderers-rust": "^0.22.0",
+    "@codama/nodes-from-anchor": "^1.1.11",
+    "@codama/renderers-rust": "^1.0.19",
     "@orca-so/whirlpools-program": "*",
-    "@orca-so/whirlpools-rust-core": "*"
+    "@orca-so/whirlpools-rust-core": "*",
+    "codama": "^1.2.11"
   }
 }

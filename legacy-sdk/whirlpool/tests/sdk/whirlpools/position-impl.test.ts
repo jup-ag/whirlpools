@@ -1,13 +1,18 @@
 import * as anchor from "@coral-xyz/anchor";
 import { Percentage } from "@orca-so/common-sdk";
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID } from "@solana/spl-token";
+import {
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+} from "@solana/spl-token";
 import * as assert from "assert";
 import Decimal from "decimal.js";
 import {
   buildWhirlpoolClient,
   decreaseLiquidityQuoteByLiquidity,
   increaseLiquidityQuoteByInputTokenUsingPriceSlippage,
+  LockConfigUtil,
   PriceMath,
+  TickUtil,
 } from "../../../src";
 import { WhirlpoolContext } from "../../../src/context";
 import { IGNORE_CACHE } from "../../../src/network/public/fetcher";
@@ -141,8 +146,8 @@ describe("position-impl", () => {
             ctx.wallet.publicKey,
           )
         )
-        .prependInstruction(useMaxCU())  // TransferHook require much CU
-        .buildAndExecute();
+          .prependInstruction(useMaxCU()) // TransferHook require much CU
+          .buildAndExecute();
 
         const postIncreaseData = await position.refreshData();
         const expectedPostIncreaseLiquidity = preIncreaseData.liquidity.add(
@@ -170,8 +175,8 @@ describe("position-impl", () => {
         await (
           await position.decreaseLiquidity(decrease_quote, false)
         )
-        .prependInstruction(useMaxCU())  // TransferHook require much CU
-        .buildAndExecute();
+          .prependInstruction(useMaxCU()) // TransferHook require much CU
+          .buildAndExecute();
 
         const postWithdrawData = await position.refreshData();
         const expectedPostWithdrawLiquidity = postIncreaseData.liquidity.sub(
@@ -258,8 +263,8 @@ describe("position-impl", () => {
         await (
           await position.increaseLiquidity(increase_quote, false)
         )
-        .prependInstruction(useMaxCU())  // TransferHook require much CU
-        .buildAndExecute();
+          .prependInstruction(useMaxCU()) // TransferHook require much CU
+          .buildAndExecute();
 
         const postIncreaseData = await position.refreshData();
         const expectedPostIncreaseLiquidity = preIncreaseData.liquidity.add(
@@ -337,7 +342,7 @@ describe("position-impl", () => {
           )
         )
           .addSigner(otherWallet)
-          .prependInstruction(useMaxCU())  // TransferHook require much CU
+          .prependInstruction(useMaxCU()) // TransferHook require much CU
           .buildAndExecute();
 
         const postSecondIncreaseData = await position.refreshData();
@@ -353,7 +358,7 @@ describe("position-impl", () => {
           )
         )
           .addSigner(otherWallet)
-          .prependInstruction(useMaxCU())  // TransferHook require much CU
+          .prependInstruction(useMaxCU()) // TransferHook require much CU
           .buildAndExecute();
 
         const postWithdrawData = await position.refreshData();
@@ -425,7 +430,10 @@ describe("position-impl", () => {
         );
 
         // Verify position mint is owned by Token-2022
-        const positionMint = await fetcher.getMintInfo(position.getData().positionMint, IGNORE_CACHE);
+        const positionMint = await fetcher.getMintInfo(
+          position.getData().positionMint,
+          IGNORE_CACHE,
+        );
         assert.ok(positionMint?.tokenProgram.equals(TOKEN_2022_PROGRAM_ID));
 
         const preIncreaseData = position.getData();
@@ -451,8 +459,8 @@ describe("position-impl", () => {
             ctx.wallet.publicKey,
           )
         )
-        .prependInstruction(useMaxCU())  // TransferHook require much CU
-        .buildAndExecute();
+          .prependInstruction(useMaxCU()) // TransferHook require much CU
+          .buildAndExecute();
 
         const postIncreaseData = await position.refreshData();
         const expectedPostIncreaseLiquidity = preIncreaseData.liquidity.add(
@@ -480,8 +488,8 @@ describe("position-impl", () => {
         await (
           await position.decreaseLiquidity(decrease_quote, false)
         )
-        .prependInstruction(useMaxCU())  // TransferHook require much CU
-        .buildAndExecute();
+          .prependInstruction(useMaxCU()) // TransferHook require much CU
+          .buildAndExecute();
 
         const postWithdrawData = await position.refreshData();
         const expectedPostWithdrawLiquidity = postIncreaseData.liquidity.sub(
@@ -493,5 +501,108 @@ describe("position-impl", () => {
         );
       });
     });
+  });
+
+  it("lock a TokenExtensions based position", async () => {
+    const tokenTraitA = { isToken2022: true };
+    const tokenTraitB = { isToken2022: false };
+    const { poolInitInfo } = await initTestPoolV2(
+      ctx,
+      tokenTraitA,
+      tokenTraitB,
+      TickSpacing.Standard,
+      PriceMath.priceToSqrtPriceX64(new Decimal(100), 6, 6),
+    );
+
+    // Create and mint tokens in this wallet
+    await mintTokensToTestAccountV2(
+      ctx.provider,
+      poolInitInfo.tokenMintA,
+      tokenTraitA,
+      10_500_000_000,
+      poolInitInfo.tokenMintB,
+      tokenTraitB,
+      10_500_000_000,
+    );
+
+    const pool = await client.getPool(poolInitInfo.whirlpoolPda.publicKey);
+
+    // [Action] Initialize Tick Arrays
+    const [lowerTick, upperTick] = TickUtil.getFullRangeTickIndex(
+      pool.getData().tickSpacing,
+    );
+    const initTickArrayTx = (await pool.initTickArrayForTicks([
+      lowerTick,
+      upperTick,
+    ]))!;
+    await initTickArrayTx.buildAndExecute();
+
+    // [Action] Create a position (FullRange)
+    const lowerPrice = PriceMath.tickIndexToPrice(
+      lowerTick,
+      pool.getTokenAInfo().decimals,
+      pool.getTokenBInfo().decimals,
+    );
+    const upperPrice = PriceMath.tickIndexToPrice(
+      upperTick,
+      pool.getTokenAInfo().decimals,
+      pool.getTokenBInfo().decimals,
+    );
+    const { positionAddress } = await initPosition(
+      ctx,
+      pool,
+      lowerPrice,
+      upperPrice,
+      poolInitInfo.tokenMintA,
+      50,
+      undefined,
+      true, // withTokenExtensions
+    );
+
+    const position = await client.getPosition(
+      positionAddress.publicKey,
+      IGNORE_CACHE,
+    );
+
+    // Position is not empty
+    assert.ok(position.getData().liquidity.gtn(0));
+    // Position range is FullRange
+    assert.ok(position.getData().tickLowerIndex === lowerTick);
+    assert.ok(position.getData().tickUpperIndex === upperTick);
+
+    const positionTokenAccount = getAssociatedTokenAddressSync(
+      position.getData().positionMint,
+      ctx.wallet.publicKey,
+      undefined,
+      TOKEN_2022_PROGRAM_ID,
+    );
+
+    const preState = await fetcher.getTokenInfo(
+      positionTokenAccount,
+      IGNORE_CACHE,
+    );
+    assert.ok(preState && !preState.isFrozen);
+
+    const preLockConfig = await position.getLockConfigData();
+    assert.ok(preLockConfig === null);
+
+    // [Action] Lock the position
+    await (
+      await position.lock(
+        LockConfigUtil.getPermanentLockType(),
+        ctx.wallet.publicKey,
+      )
+    ).buildAndExecute();
+
+    // Verify the position is locked
+    const postState = await fetcher.getTokenInfo(
+      positionTokenAccount,
+      IGNORE_CACHE,
+    );
+    assert.ok(postState && postState.isFrozen);
+
+    const postLockConfig = await position.getLockConfigData();
+    assert.ok(postLockConfig);
+    assert.ok(postLockConfig.position.equals(position.getAddress()));
   });
 });

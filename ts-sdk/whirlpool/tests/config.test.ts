@@ -6,21 +6,18 @@ import {
   resetConfiguration,
   setDefaultFunder,
   setDefaultSlippageToleranceBps,
-  setSolWrappingStrategy,
+  setNativeMintWrappingStrategy,
   setWhirlpoolsConfig,
-  SOL_WRAPPING_STRATEGY,
+  NATIVE_MINT_WRAPPING_STRATEGY,
   WHIRLPOOLS_CONFIG_ADDRESS,
   WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS,
   DEFAULT_SLIPPAGE_TOLERANCE_BPS,
-  DEFAULT_SOL_WRAPPING_STRATEGY,
-  DEFAULT_WHIRLPOOLS_CONFIG_ADDRESS,
+  DEFAULT_NATIVE_MINT_WRAPPING_STRATEGY,
   DEFAULT_WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS,
+  DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES,
 } from "../src/config";
 import assert from "assert";
-import {
-  address,
-  createKeyPairSignerFromPrivateKeyBytes,
-} from "@solana/web3.js";
+import { address, createKeyPairSignerFromPrivateKeyBytes } from "@solana/kit";
 
 // Tests in order, which is important here
 
@@ -43,6 +40,18 @@ describe("Configuration", () => {
     );
   });
 
+  it("Should be able to set whirlpools config based on network", async () => {
+    await setWhirlpoolsConfig("eclipseTestnet");
+    assert.strictEqual(
+      WHIRLPOOLS_CONFIG_ADDRESS,
+      DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES.eclipseTestnet,
+    );
+    assert.strictEqual(
+      WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS,
+      "6gUEB962oFdZtwoVyXNya9TfGWnBEbYNYt8UdvzT6PSf",
+    );
+  });
+
   it("Should be able to set default funder to an address", () => {
     setDefaultFunder(DEFAULT_ADDRESS);
     assert.strictEqual(FUNDER.address, DEFAULT_ADDRESS);
@@ -60,16 +69,16 @@ describe("Configuration", () => {
     assert.strictEqual(SLIPPAGE_TOLERANCE_BPS, 200);
   });
 
-  it("Should be able to set the sol wrapping strategy", () => {
-    setSolWrappingStrategy("ata");
-    assert.strictEqual(SOL_WRAPPING_STRATEGY, "ata");
+  it("Should be able to set the native mint wrapping strategy", () => {
+    setNativeMintWrappingStrategy("ata");
+    assert.strictEqual(NATIVE_MINT_WRAPPING_STRATEGY, "ata");
   });
 
   it("Should be able to reset the configuration", () => {
     resetConfiguration();
     assert.strictEqual(
       WHIRLPOOLS_CONFIG_ADDRESS,
-      DEFAULT_WHIRLPOOLS_CONFIG_ADDRESS,
+      DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES.solanaMainnet,
     );
     assert.strictEqual(
       WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS,
@@ -77,6 +86,9 @@ describe("Configuration", () => {
     );
     assert.strictEqual(FUNDER.address, DEFAULT_ADDRESS);
     assert.strictEqual(SLIPPAGE_TOLERANCE_BPS, DEFAULT_SLIPPAGE_TOLERANCE_BPS);
-    assert.strictEqual(SOL_WRAPPING_STRATEGY, DEFAULT_SOL_WRAPPING_STRATEGY);
+    assert.strictEqual(
+      NATIVE_MINT_WRAPPING_STRATEGY,
+      DEFAULT_NATIVE_MINT_WRAPPING_STRATEGY,
+    );
   });
 });

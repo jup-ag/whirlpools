@@ -10,7 +10,6 @@ import {
   getDecreaseLiquidityV2Instruction,
   getPositionAddress,
   getTickArrayAddress,
-  getUpdateFeesAndRewardsInstruction,
 } from "@orca-so/whirlpools-client";
 import type {
   CollectFeesQuote,
@@ -33,12 +32,13 @@ import {
 import type {
   Address,
   GetAccountInfoApi,
+  GetEpochInfoApi,
   GetMinimumBalanceForRentExemptionApi,
   GetMultipleAccountsApi,
   IInstruction,
   Rpc,
   TransactionSigner,
-} from "@solana/web3.js";
+} from "@solana/kit";
 import { DEFAULT_ADDRESS, FUNDER, SLIPPAGE_TOLERANCE_BPS } from "./config";
 import {
   findAssociatedTokenPda,
@@ -55,7 +55,7 @@ import {
 } from "@solana-program/token-2022";
 import { MEMO_PROGRAM_ADDRESS } from "@solana-program/memo";
 import assert from "assert";
-
+import { wrapFunctionWithExecution } from "./actionHelpers";
 // TODO: allow specify number as well as bigint
 // TODO: transfer hook
 
@@ -142,17 +142,15 @@ function getDecreaseLiquidityQuote(
  * @returns {Promise<DecreaseLiquidityInstructions>} A promise resolving to an object containing the decrease liquidity quote and instructions.
  *
  * @example
- * import { decreaseLiquidityInstructions } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { decreaseLiquidityInstructions, setWhirlpoolsConfig } from '@orca-so/whirlpools';
+ * import { createSolanaRpc, devnet, address } from '@solana/kit';
+ * import { loadWallet } from './utils';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
- *
- * const positionMint = "POSITION_MINT";
- *
- * const param = { liquidity: 500_000n };
- *
+ * const wallet = await loadWallet();
+ * const positionMint = address("HqoV7Qv27REUtmd9UKSJGGmCRNx3531t33bDG1BUfo9K");
+ * const param = { tokenA: 10n };
  * const { quote, instructions } = await decreaseLiquidityInstructions(
  *   devnetRpc,
  *   positionMint,
@@ -160,12 +158,15 @@ function getDecreaseLiquidityQuote(
  *   100,
  *   wallet
  * );
+ *
+ * console.log(`Quote token max B: ${quote.tokenEstB}`);
  */
 export async function decreaseLiquidityInstructions(
   rpc: Rpc<
     GetAccountInfoApi &
       GetMultipleAccountsApi &
-      GetMinimumBalanceForRentExemptionApi
+      GetMinimumBalanceForRentExemptionApi &
+      GetEpochInfoApi
   >,
   positionMintAddress: Address,
   param: DecreaseLiquidityQuoteParam,
@@ -279,40 +280,41 @@ export type ClosePositionInstructions = DecreaseLiquidityInstructions & {
  *
  * @param {SolanaRpc} rpc - A Solana RPC client for fetching accounts and pool data.
  * @param {Address} positionMintAddress - The mint address of the NFT that represents ownership of the position to be closed.
- * @param {DecreaseLiquidityQuoteParam} param - The parameters for removing liquidity (liquidity, tokenA, or tokenB).
  * @param {number} [slippageToleranceBps=SLIPPAGE_TOLERANCE_BPS] - The acceptable slippage tolerance in basis points.
  * @param {TransactionSigner} [authority=FUNDER] - The account authorizing the transaction.
  *
  * @returns {Promise<ClosePositionInstructions>} A promise resolving to an object containing instructions, fees quote, rewards quote, and the liquidity quote for the closed position.
  *
  * @example
- * import { closePositionInstructions } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { closePositionInstructions, setWhirlpoolsConfig } from '@orca-so/whirlpools';
+ * import { createSolanaRpc, devnet, address } from '@solana/kit';
+ * import { loadWallet } from './utils';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
- *
- * const positionMint = "POSITION_MINT";
- *
- * const param = { liquidity: 500_000n };
+ * const wallet = await loadWallet();
+ * const positionMint = address("HqoV7Qv27REUtmd9UKSJGGmCRNx3531t33bDG1BUfo9K");
  *
  * const { instructions, quote, feesQuote, rewardsQuote } = await closePositionInstructions(
  *   devnetRpc,
  *   positionMint,
- *   param,
  *   100,
  *   wallet
  * );
+ *
+ * console.log(`Quote token max B: ${quote.tokenEstB}`);
+ * console.log(`Fees owed token A: ${feesQuote.feeOwedA}`);
+ * console.log(`Rewards '1' owed: ${rewardsQuote.rewards[0].rewardsOwed}`);
+ * console.log(`Number of instructions:, ${instructions.length}`);
  */
 export async function closePositionInstructions(
   rpc: Rpc<
     GetAccountInfoApi &
       GetMultipleAccountsApi &
-      GetMinimumBalanceForRentExemptionApi
+      GetMinimumBalanceForRentExemptionApi &
+      GetEpochInfoApi
   >,
   positionMintAddress: Address,
-  param: DecreaseLiquidityQuoteParam,
   slippageToleranceBps: number = SLIPPAGE_TOLERANCE_BPS,
   authority: TransactionSigner = FUNDER,
 ): Promise<ClosePositionInstructions> {
@@ -346,7 +348,7 @@ export async function closePositionInstructions(
   const transferFeeB = getCurrentTransferFee(mintB, currentEpoch.epoch);
 
   const quote = getDecreaseLiquidityQuote(
-    param,
+    { liquidity: position.data.liquidity },
     whirlpool.data,
     position.data,
     slippageToleranceBps,
@@ -420,43 +422,31 @@ export async function closePositionInstructions(
     getCurrentTransferFee(rewardMints[2], currentEpoch.epoch),
   );
 
-  const requiredMints: Address[] = [];
+  const requiredMints: Set<Address> = new Set();
   if (
     quote.liquidityDelta > 0n ||
     feesQuote.feeOwedA > 0n ||
     feesQuote.feeOwedB > 0n
   ) {
-    requiredMints.push(whirlpool.data.tokenMintA);
-    requiredMints.push(whirlpool.data.tokenMintB);
-  }
-  if (rewardsQuote.rewards[0].rewardsOwed > 0n) {
-    requiredMints.push(whirlpool.data.rewardInfos[0].mint);
-  }
-  if (rewardsQuote.rewards[1].rewardsOwed > 0n) {
-    requiredMints.push(whirlpool.data.rewardInfos[1].mint);
-  }
-  if (rewardsQuote.rewards[2].rewardsOwed > 0n) {
-    requiredMints.push(whirlpool.data.rewardInfos[2].mint);
+    requiredMints.add(whirlpool.data.tokenMintA);
+    requiredMints.add(whirlpool.data.tokenMintB);
   }
 
-  // FIXME: this creates the accounts even if they are not actually needed
-  // (no rewards, fees, to decrease liquidity, etc.)
+  for (let i = 0; i < rewardsQuote.rewards.length; i++) {
+    if (rewardsQuote.rewards[i].rewardsOwed > 0n) {
+      requiredMints.add(whirlpool.data.rewardInfos[i].mint);
+    }
+  }
+
   const { createInstructions, cleanupInstructions, tokenAccountAddresses } =
-    await prepareTokenAccountsInstructions(rpc, authority, requiredMints);
+    await prepareTokenAccountsInstructions(
+      rpc,
+      authority,
+      Array.from(requiredMints),
+    );
 
   const instructions: IInstruction[] = [];
   instructions.push(...createInstructions);
-
-  if (position.data.liquidity > 0n) {
-    instructions.push(
-      getUpdateFeesAndRewardsInstruction({
-        whirlpool: whirlpool.address,
-        position: positionAddress[0],
-        tickArrayLower: lowerTickArrayAddress,
-        tickArrayUpper: upperTickArrayAddress,
-      }),
-    );
-  }
 
   if (quote.liquidityDelta > 0n) {
     instructions.push(
@@ -565,3 +555,13 @@ export async function closePositionInstructions(
     rewardsQuote,
   };
 }
+
+// -------- ACTIONS --------
+
+export const closePosition = wrapFunctionWithExecution(
+  closePositionInstructions,
+);
+
+export const decreaseLiquidity = wrapFunctionWithExecution(
+  decreaseLiquidityInstructions,
+);

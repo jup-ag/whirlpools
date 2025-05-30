@@ -10,14 +10,15 @@ import {
 } from "@orca-so/whirlpools-client";
 import type {
   Address,
-  GetMinimumBalanceForRentExemptionApi,
+  GetAccountInfoApi,
   GetMultipleAccountsApi,
   IInstruction,
-  LamportsUnsafeBeyond2Pow53Minus1,
+  Lamports,
   Rpc,
   TransactionSigner,
-} from "@solana/web3.js";
-import { generateKeyPairSigner } from "@solana/web3.js";
+} from "@solana/kit";
+import { generateKeyPairSigner, lamports } from "@solana/kit";
+import { fetchSysvarRent } from "@solana/sysvars";
 import {
   DEFAULT_ADDRESS,
   FUNDER,
@@ -30,8 +31,11 @@ import {
   priceToSqrtPrice,
   sqrtPriceToTickIndex,
 } from "@orca-so/whirlpools-core";
-import { fetchAllMint, getTokenSize } from "@solana-program/token";
+import { fetchAllMint } from "@solana-program/token-2022";
 import assert from "assert";
+import { getTokenSizeForMint, orderMints } from "./token";
+import { calculateMinimumBalanceForRentExemption } from "./sysvar";
+import { wrapFunctionWithExecution } from "./actionHelpers";
 
 /**
  * Represents the instructions and metadata for creating a pool.
@@ -41,7 +45,7 @@ export type CreatePoolInstructions = {
   instructions: IInstruction[];
 
   /** The estimated rent exemption cost for initializing the pool, in lamports. */
-  estInitializationCost: LamportsUnsafeBeyond2Pow53Minus1;
+  initializationCost: Lamports;
 
   /** The address of the newly created pool. */
   poolAddress: Address;
@@ -59,27 +63,30 @@ export type CreatePoolInstructions = {
  * @returns {Promise<CreatePoolInstructions>} A promise that resolves to an object containing the pool creation instructions, the estimated initialization cost, and the pool address.
  *
  * @example
- * import { createSplashPoolInstructions } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { createSplashPoolInstructions, setWhirlpoolsConfig } from '@orca-so/whirlpools';
+ * import { generateKeyPairSigner, createSolanaRpc, devnet, address } from '@solana/kit';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
+ * const wallet = await generateKeyPairSigner(); // CAUTION: This wallet is not persistent.
  *
- * const tokenMintOne = "TOKEN_MINT_ADDRESS_1";
- * const tokenMintTwo = "TOKEN_MINT_ADDRESS_2";
+ * const tokenMintOne = address("So11111111111111111111111111111111111111112");
+ * const tokenMintTwo = address("BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k"); // devUSDC
  * const initialPrice = 0.01;
  *
  * const { poolAddress, instructions, initializationCost } = await createSplashPoolInstructions(
- *   devnetRpc,
- *   tokenMintOne,
- *   tokenMintTwo,
- *   initialPrice,
- *   wallet
+ *     devnetRpc,
+ *     tokenMintOne,
+ *     tokenMintTwo,
+ *     initialPrice,
+ *     wallet
  * );
+ *
+ * console.log(`Pool Address: ${poolAddress}`);
+ * console.log(`Initialization Cost: ${initializationCost} lamports`);
  */
 export function createSplashPoolInstructions(
-  rpc: Rpc<GetMultipleAccountsApi & GetMinimumBalanceForRentExemptionApi>,
+  rpc: Rpc<GetAccountInfoApi & GetMultipleAccountsApi>,
   tokenMintA: Address,
   tokenMintB: Address,
   initialPrice: number = 1,
@@ -108,29 +115,32 @@ export function createSplashPoolInstructions(
  * @returns {Promise<CreatePoolInstructions>} A promise that resolves to an object containing the pool creation instructions, the estimated initialization cost, and the pool address.
  *
  * @example
- * import { createConcentratedLiquidityPool } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { createConcentratedLiquidityPoolInstructions, setWhirlpoolsConfig } from '@orca-so/whirlpools';
+ * import { generateKeyPairSigner, createSolanaRpc, devnet, address } from '@solana/kit';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
+ * const wallet = await generateKeyPairSigner(); // CAUTION: This wallet is not persistent.
  *
- * const tokenMintOne = "TOKEN_MINT_ADDRESS_1";
- * const tokenMintTwo = "TOKEN_MINT_ADDRESS_2";
+ * const tokenMintOne = address("So11111111111111111111111111111111111111112");
+ * const tokenMintTwo = address("BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k"); // devUSDC
  * const tickSpacing = 64;
  * const initialPrice = 0.01;
  *
- * const { poolAddress, instructions, initializationCost } = await createConcentratedLiquidityPool(
- *   devnetRpc,
- *   tokenMintOne,
- *   tokenMintTwo,
- *   tickSpacing,
- *   initialPrice,
- *   wallet
+ * const { poolAddress, instructions, initializationCost } = await createConcentratedLiquidityPoolInstructions(
+ *     devnetRpc,
+ *     tokenMintOne,
+ *     tokenMintTwo,
+ *     tickSpacing,
+ *     initialPrice,
+ *     wallet
  * );
+ *
+ * console.log(`Pool Address: ${poolAddress}`);
+ * console.log(`Initialization Cost: ${initializationCost} lamports`);
  */
 export async function createConcentratedLiquidityPoolInstructions(
-  rpc: Rpc<GetMultipleAccountsApi & GetMinimumBalanceForRentExemptionApi>,
+  rpc: Rpc<GetAccountInfoApi & GetMultipleAccountsApi>,
   tokenMintA: Address,
   tokenMintB: Address,
   tickSpacing: number,
@@ -142,11 +152,13 @@ export async function createConcentratedLiquidityPoolInstructions(
     "Either supply a funder or set the default funder",
   );
   assert(
-    Buffer.from(tokenMintA) < Buffer.from(tokenMintB),
+    orderMints(tokenMintA, tokenMintB)[0] === tokenMintA,
     "Token order needs to be flipped to match the canonical ordering (i.e. sorted on the byte repr. of the mint pubkeys)",
   );
   const instructions: IInstruction[] = [];
-  let stateSpace = 0;
+
+  const rent = await fetchSysvarRent(rpc);
+  let nonRefundableRent: bigint = 0n;
 
   // Since TE mint data is an extension of T mint data, we can use the same fetch function
   const [mintA, mintB] = await fetchAllMint(rpc, [tokenMintA, tokenMintB]);
@@ -201,8 +213,18 @@ export async function createConcentratedLiquidityPoolInstructions(
     }),
   );
 
-  stateSpace += getTokenSize() * 2;
-  stateSpace += getWhirlpoolSize();
+  nonRefundableRent += calculateMinimumBalanceForRentExemption(
+    rent,
+    getTokenSizeForMint(mintA),
+  );
+  nonRefundableRent += calculateMinimumBalanceForRentExemption(
+    rent,
+    getTokenSizeForMint(mintB),
+  );
+  nonRefundableRent += calculateMinimumBalanceForRentExemption(
+    rent,
+    getWhirlpoolSize(),
+  );
 
   const fullRange = getFullRangeTickIndexes(tickSpacing);
   const lowerTickIndex = getTickArrayStartTickIndex(
@@ -238,16 +260,24 @@ export async function createConcentratedLiquidityPoolInstructions(
         startTickIndex: tickArrayIndexes[i],
       }),
     );
-    stateSpace += getTickArraySize();
+    nonRefundableRent += calculateMinimumBalanceForRentExemption(
+      rent,
+      getTickArraySize(),
+    );
   }
-
-  const nonRefundableRent = await rpc
-    .getMinimumBalanceForRentExemption(BigInt(stateSpace))
-    .send();
 
   return {
     instructions,
     poolAddress,
-    estInitializationCost: nonRefundableRent,
+    initializationCost: lamports(nonRefundableRent),
   };
 }
+
+// -------- ACTIONS --------
+
+export const createSplashPool = wrapFunctionWithExecution(
+  createSplashPoolInstructions,
+);
+export const createConcentratedLiquidityPool = wrapFunctionWithExecution(
+  createConcentratedLiquidityPoolInstructions,
+);

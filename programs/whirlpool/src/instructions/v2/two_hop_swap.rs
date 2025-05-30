@@ -10,7 +10,8 @@ use crate::util::{
 use crate::{
     constants::transfer_memo,
     errors::ErrorCode,
-    state::Whirlpool,
+    events::*,
+    state::{OracleAccessor, Whirlpool},
     util::{to_timestamp_u64, SparseSwapTickSequenceBuilder},
 };
 
@@ -175,6 +176,20 @@ pub fn handler<'info>(
     )?;
     let mut swap_tick_sequence_two = builder_two.build()?;
 
+    let oracle_accessor_one =
+        OracleAccessor::new(whirlpool_one, ctx.accounts.oracle_one.to_account_info())?;
+    if !oracle_accessor_one.is_trade_enabled(timestamp)? {
+        return Err(ErrorCode::TradeIsNotEnabled.into());
+    }
+    let adaptive_fee_info_one = oracle_accessor_one.get_adaptive_fee_info()?;
+
+    let oracle_accessor_two =
+        OracleAccessor::new(whirlpool_two, ctx.accounts.oracle_two.to_account_info())?;
+    if !oracle_accessor_two.is_trade_enabled(timestamp)? {
+        return Err(ErrorCode::TradeIsNotEnabled.into());
+    }
+    let adaptive_fee_info_two = oracle_accessor_two.get_adaptive_fee_info()?;
+
     // TODO: WLOG, we could extend this to N-swaps, but the account inputs to the instruction would
     // need to be jankier and we may need to programatically map/verify rather than using anchor constraints
     let (swap_update_one, swap_update_two) = if amount_specified_is_input {
@@ -199,6 +214,7 @@ pub fn handler<'info>(
             amount_specified_is_input, // true
             a_to_b_one,
             timestamp,
+            &adaptive_fee_info_one,
         )?;
 
         // Swap two input is the output of swap one
@@ -227,6 +243,7 @@ pub fn handler<'info>(
             amount_specified_is_input, // true
             a_to_b_two,
             timestamp,
+            &adaptive_fee_info_two,
         )?;
         (swap_calc_one, swap_calc_two)
     } else {
@@ -251,6 +268,7 @@ pub fn handler<'info>(
             amount_specified_is_input, // false
             a_to_b_two,
             timestamp,
+            &adaptive_fee_info_two,
         )?;
 
         // The output of swap 1 is input of swap_calc_two
@@ -286,6 +304,7 @@ pub fn handler<'info>(
             amount_specified_is_input, // false
             a_to_b_one,
             timestamp,
+            &adaptive_fee_info_one,
         )?;
         (swap_calc_one, swap_calc_two)
     };
@@ -339,51 +358,47 @@ pub fn handler<'info>(
         }
     }
 
-    /*
-    update_and_swap_whirlpool_v2(
-        whirlpool_one,
-        &ctx.accounts.token_authority,
-        &ctx.accounts.token_mint_one_a,
-        &ctx.accounts.token_mint_one_b,
-        &ctx.accounts.token_owner_account_one_a,
-        &ctx.accounts.token_owner_account_one_b,
-        &ctx.accounts.token_vault_one_a,
-        &ctx.accounts.token_vault_one_b,
-        &remaining_accounts.transfer_hook_one_a,
-        &remaining_accounts.transfer_hook_one_b,
-        &ctx.accounts.token_program_one_a,
-        &ctx.accounts.token_program_one_b,
-        &ctx.accounts.memo_program,
-        swap_update_one,
-        a_to_b_one,
-        timestamp,
-        transfer_memo::TRANSFER_MEMO_SWAP.as_bytes(),
-    )?;
+    oracle_accessor_one.update_adaptive_fee_variables(&swap_update_one.next_adaptive_fee_info)?;
 
-    update_and_swap_whirlpool_v2(
-        whirlpool_two,
-        &ctx.accounts.token_authority,
-        &ctx.accounts.token_mint_two_a,
-        &ctx.accounts.token_mint_two_b,
-        &ctx.accounts.token_owner_account_two_a,
-        &ctx.accounts.token_owner_account_two_b,
-        &ctx.accounts.token_vault_two_a,
-        &ctx.accounts.token_vault_two_b,
-        &remaining_accounts.transfer_hook_two_a,
-        &remaining_accounts.transfer_hook_two_b,
-        &ctx.accounts.token_program_two_a,
-        &ctx.accounts.token_program_two_b,
-        &ctx.accounts.memo_program,
-        swap_update_two,
-        a_to_b_two,
-        timestamp,
-        transfer_memo::TRANSFER_MEMO_SWAP.as_bytes(),
-    )
-    */
+    oracle_accessor_two.update_adaptive_fee_variables(&swap_update_two.next_adaptive_fee_info)?;
+
+    let pre_sqrt_price_one = whirlpool_one.sqrt_price;
+    let (input_amount_one, output_amount_one) = if a_to_b_one {
+        (swap_update_one.amount_a, swap_update_one.amount_b)
+    } else {
+        (swap_update_one.amount_b, swap_update_one.amount_a)
+    };
+    let input_transfer_fee_one =
+        calculate_transfer_fee_excluded_amount(&ctx.accounts.token_mint_input, input_amount_one)?
+            .transfer_fee;
+    let output_transfer_fee_one = calculate_transfer_fee_excluded_amount(
+        &ctx.accounts.token_mint_intermediate,
+        output_amount_one,
+    )?
+    .transfer_fee;
+    let (lp_fee_one, protocol_fee_one) =
+        (swap_update_one.lp_fee, swap_update_one.next_protocol_fee);
+
+    let pre_sqrt_price_two = whirlpool_two.sqrt_price;
+    let (input_amount_two, output_amount_two) = if a_to_b_two {
+        (swap_update_two.amount_a, swap_update_two.amount_b)
+    } else {
+        (swap_update_two.amount_b, swap_update_two.amount_a)
+    };
+    let input_transfer_fee_two = calculate_transfer_fee_excluded_amount(
+        &ctx.accounts.token_mint_intermediate,
+        input_amount_two,
+    )?
+    .transfer_fee;
+    let output_transfer_fee_two =
+        calculate_transfer_fee_excluded_amount(&ctx.accounts.token_mint_output, output_amount_two)?
+            .transfer_fee;
+    let (lp_fee_two, protocol_fee_two) =
+        (swap_update_two.lp_fee, swap_update_two.next_protocol_fee);
 
     update_and_two_hop_swap_whirlpool_v2(
-        swap_update_one,
-        swap_update_two,
+        &swap_update_one,
+        &swap_update_two,
         whirlpool_one,
         whirlpool_two,
         a_to_b_one,
@@ -407,5 +422,33 @@ pub fn handler<'info>(
         &ctx.accounts.memo_program,
         timestamp,
         transfer_memo::TRANSFER_MEMO_SWAP.as_bytes(),
-    )
+    )?;
+
+    emit!(Traded {
+        whirlpool: whirlpool_one.key(),
+        a_to_b: a_to_b_one,
+        pre_sqrt_price: pre_sqrt_price_one,
+        post_sqrt_price: whirlpool_one.sqrt_price,
+        input_amount: input_amount_one,
+        output_amount: output_amount_one,
+        input_transfer_fee: input_transfer_fee_one,
+        output_transfer_fee: output_transfer_fee_one,
+        lp_fee: lp_fee_one,
+        protocol_fee: protocol_fee_one,
+    });
+
+    emit!(Traded {
+        whirlpool: whirlpool_two.key(),
+        a_to_b: a_to_b_two,
+        pre_sqrt_price: pre_sqrt_price_two,
+        post_sqrt_price: whirlpool_two.sqrt_price,
+        input_amount: input_amount_two,
+        output_amount: output_amount_two,
+        input_transfer_fee: input_transfer_fee_two,
+        output_transfer_fee: output_transfer_fee_two,
+        lp_fee: lp_fee_two,
+        protocol_fee: protocol_fee_two,
+    });
+
+    Ok(())
 }
