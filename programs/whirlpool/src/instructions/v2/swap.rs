@@ -241,7 +241,7 @@ pub fn swap_with_transfer_fee_extension<'info>(
             amount_specified_is_input,
             a_to_b,
             timestamp,
-            adaptive_fee_info,
+            adaptive_fee_info.clone(),
         )?;
 
         let (swap_update_amount_input, swap_update_amount_output) = if a_to_b {
@@ -300,7 +300,7 @@ pub fn swap_with_transfer_fee_extension<'info>(
         amount_specified_is_input,
         a_to_b,
         timestamp,
-        adaptive_fee_info,
+        adaptive_fee_info.clone(),
     )?;
 
     let (swap_update_amount_input, swap_update_amount_output) = if a_to_b {
