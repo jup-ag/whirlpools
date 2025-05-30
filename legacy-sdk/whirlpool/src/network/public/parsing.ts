@@ -6,6 +6,7 @@ import type { AccountInfo, PublicKey } from "@solana/web3.js";
 import * as WhirlpoolIDL from "../../artifacts/whirlpool.json";
 import type {
   FeeTierData,
+  LockConfigData,
   PositionBundleData,
   PositionData,
   TickArrayData,
@@ -13,6 +14,8 @@ import type {
   WhirlpoolData,
   WhirlpoolsConfigData,
   WhirlpoolsConfigExtensionData,
+  AdaptiveFeeTierData,
+  OracleData,
 } from "../../types/public";
 import { AccountName } from "../../types/public";
 
@@ -190,6 +193,72 @@ export class ParsableTokenBadge {
       return parseAnchorAccount(AccountName.TokenBadge, accountData);
     } catch (e) {
       console.error(`error while parsing TokenBadge: ${e}`);
+      return null;
+    }
+  }
+}
+
+/**
+ * @category Network
+ */
+@staticImplements<ParsableEntity<LockConfigData>>()
+export class ParsableLockConfig {
+  public static parse(
+    address: PublicKey,
+    accountData: AccountInfo<Buffer> | undefined | null,
+  ): LockConfigData | null {
+    if (!accountData?.data) {
+      return null;
+    }
+
+    try {
+      return parseAnchorAccount(AccountName.LockConfig, accountData);
+    } catch (e) {
+      console.error(`error while parsing LockConfig: ${e}`);
+      return null;
+    }
+  }
+}
+
+/**
+ * @category Network
+ */
+@staticImplements<ParsableEntity<AdaptiveFeeTierData>>()
+export class ParsableAdaptiveFeeTier {
+  public static parse(
+    address: PublicKey,
+    accountData: AccountInfo<Buffer> | undefined | null,
+  ): AdaptiveFeeTierData | null {
+    if (!accountData?.data) {
+      return null;
+    }
+
+    try {
+      return parseAnchorAccount(AccountName.AdaptiveFeeTier, accountData);
+    } catch (e) {
+      console.error(`error while parsing AdaptiveFeeTier: ${e}`);
+      return null;
+    }
+  }
+}
+
+/**
+ * @category Network
+ */
+@staticImplements<ParsableEntity<OracleData>>()
+export class ParsableOracle {
+  public static parse(
+    address: PublicKey,
+    accountData: AccountInfo<Buffer> | undefined | null,
+  ): OracleData | null {
+    if (!accountData?.data) {
+      return null;
+    }
+
+    try {
+      return parseAnchorAccount(AccountName.Oracle, accountData);
+    } catch (e) {
+      console.error(`error while parsing Oracle: ${e}`);
       return null;
     }
   }

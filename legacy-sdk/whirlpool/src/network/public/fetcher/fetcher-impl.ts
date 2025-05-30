@@ -20,6 +20,7 @@ import type {
 import { DEFAULT_WHIRLPOOL_RETENTION_POLICY } from "..";
 import type {
   FeeTierData,
+  LockConfigData,
   PositionBundleData,
   PositionData,
   TickArrayData,
@@ -27,9 +28,12 @@ import type {
   WhirlpoolData,
   WhirlpoolsConfigData,
   WhirlpoolsConfigExtensionData,
+  AdaptiveFeeTierData,
+  OracleData,
 } from "../../../types/public";
 import {
   ParsableFeeTier,
+  ParsableLockConfig,
   ParsablePosition,
   ParsablePositionBundle,
   ParsableTickArray,
@@ -37,6 +41,8 @@ import {
   ParsableWhirlpoolsConfig,
   ParsableWhirlpoolsConfigExtension,
   ParsableTokenBadge,
+  ParsableAdaptiveFeeTier,
+  ParsableOracle,
 } from "../parsing";
 
 /**
@@ -74,7 +80,7 @@ export class WhirlpoolAccountFetcher
 
   async getAccountRentExempt(refresh: boolean = false): Promise<number> {
     // This value should be relatively static or at least not break according to spec
-    // https://docs.solana.com/developing/programming-model/accounts#rent-exemption
+    // https://solana.com/docs/terminology#rent-exempt
     if (!this._accountRentExempt || refresh) {
       this._accountRentExempt =
         await this.connection.getMinimumBalanceForRentExemption(
@@ -235,6 +241,45 @@ export class WhirlpoolAccountFetcher
     opts?: WhirlpoolAccountFetchOptions,
   ): Promise<ReadonlyMap<string, TokenBadgeData | null>> {
     return this.fetcher.getAccounts(addresses, ParsableTokenBadge, opts);
+  }
+
+  getLockConfig(
+    address: Address,
+    opts?: WhirlpoolAccountFetchOptions,
+  ): Promise<LockConfigData | null> {
+    return this.fetcher.getAccount(address, ParsableLockConfig, opts);
+  }
+  getLockConfigs(
+    addresses: Address[],
+    opts?: WhirlpoolAccountFetchOptions,
+  ): Promise<ReadonlyMap<string, LockConfigData | null>> {
+    return this.fetcher.getAccounts(addresses, ParsableLockConfig, opts);
+  }
+
+  getAdaptiveFeeTier(
+    address: Address,
+    opts?: WhirlpoolAccountFetchOptions,
+  ): Promise<AdaptiveFeeTierData | null> {
+    return this.fetcher.getAccount(address, ParsableAdaptiveFeeTier, opts);
+  }
+  getAdaptiveFeeTiers(
+    addresses: Address[],
+    opts?: WhirlpoolAccountFetchOptions,
+  ): Promise<ReadonlyMap<string, AdaptiveFeeTierData | null>> {
+    return this.fetcher.getAccounts(addresses, ParsableAdaptiveFeeTier, opts);
+  }
+
+  getOracle(
+    address: Address,
+    opts?: WhirlpoolAccountFetchOptions,
+  ): Promise<OracleData | null> {
+    return this.fetcher.getAccount(address, ParsableOracle, opts);
+  }
+  getOracles(
+    addresses: Address[],
+    opts?: WhirlpoolAccountFetchOptions,
+  ): Promise<ReadonlyMap<string, OracleData | null>> {
+    return this.fetcher.getAccounts(addresses, ParsableOracle, opts);
   }
 
   populateCache<T extends WhirlpoolSupportedTypes>(

@@ -3,8 +3,9 @@ use anchor_spl::token::{self, Token, TokenAccount};
 
 use crate::{
     errors::ErrorCode,
+    events::*,
     manager::swap_manager::*,
-    state::Whirlpool,
+    state::{OracleAccessor, Whirlpool},
     util::{to_timestamp_u64, update_and_swap_whirlpool, SparseSwapTickSequenceBuilder},
 };
 
@@ -40,9 +41,15 @@ pub struct Swap<'info> {
     /// CHECK: checked in the handler
     pub tick_array_2: UncheckedAccount<'info>,
 
-    #[account(seeds = [b"oracle", whirlpool.key().as_ref()],bump)]
+    #[account(seeds = [b"oracle", whirlpool.key().as_ref()], bump)]
     /// CHECK: Oracle is currently unused and will be enabled on subsequent updates
     pub oracle: UncheckedAccount<'info>,
+    // Special notes to support pools with AdaptiveFee:
+    // - For trades on pool using AdaptiveFee, pass oracle as writable accounts in the remaining accounts.
+    // - If you want to avoid using the remaining accounts, you can pass oracle as writable accounts directly.
+
+    // remaining accounts
+    // - [mut] oracle
 }
 
 pub fn handler(
@@ -70,6 +77,12 @@ pub fn handler(
     )?;
     let mut swap_tick_sequence = builder.build()?;
 
+    let oracle_accessor = OracleAccessor::new(whirlpool, ctx.accounts.oracle.to_account_info())?;
+    if !oracle_accessor.is_trade_enabled(timestamp)? {
+        return Err(ErrorCode::TradeIsNotEnabled.into());
+    }
+    let adaptive_fee_info = oracle_accessor.get_adaptive_fee_info()?;
+
     let swap_update = swap(
         whirlpool,
         &mut swap_tick_sequence,
@@ -78,6 +91,7 @@ pub fn handler(
         amount_specified_is_input,
         a_to_b,
         timestamp,
+        adaptive_fee_info.clone(),
     )?;
 
     if amount_specified_is_input {
@@ -92,6 +106,16 @@ pub fn handler(
         return Err(ErrorCode::AmountInAboveMaximum.into());
     }
 
+    oracle_accessor.update_adaptive_fee_variables(&swap_update.next_adaptive_fee_info)?;
+
+    let pre_sqrt_price = whirlpool.sqrt_price;
+    let (input_amount, output_amount) = if a_to_b {
+        (swap_update.amount_a, swap_update.amount_b)
+    } else {
+        (swap_update.amount_b, swap_update.amount_a)
+    };
+    let (lp_fee, protocol_fee) = (swap_update.lp_fee, swap_update.next_protocol_fee);
+
     update_and_swap_whirlpool(
         whirlpool,
         &ctx.accounts.token_authority,
@@ -100,8 +124,23 @@ pub fn handler(
         &ctx.accounts.token_vault_a,
         &ctx.accounts.token_vault_b,
         &ctx.accounts.token_program,
-        swap_update,
+        &swap_update,
         a_to_b,
         timestamp,
-    )
+    )?;
+
+    emit!(Traded {
+        whirlpool: whirlpool.key(),
+        a_to_b,
+        pre_sqrt_price,
+        post_sqrt_price: whirlpool.sqrt_price,
+        input_amount,
+        output_amount,
+        input_transfer_fee: 0,
+        output_transfer_fee: 0,
+        lp_fee,
+        protocol_fee,
+    });
+
+    Ok(())
 }

@@ -2,13 +2,14 @@ import type {
   Account,
   Address,
   GetAccountInfoApi,
+  GetEpochInfoApi,
   GetMinimumBalanceForRentExemptionApi,
   GetMultipleAccountsApi,
   IInstruction,
   Rpc,
   TransactionSigner,
-} from "@solana/web3.js";
-import { AccountRole, lamports } from "@solana/web3.js";
+} from "@solana/kit";
+import { AccountRole, lamports } from "@solana/kit";
 import { FUNDER, SLIPPAGE_TOLERANCE_BPS } from "./config";
 import type {
   ExactInSwapQuote,
@@ -22,11 +23,12 @@ import {
   swapQuoteByInputToken,
   swapQuoteByOutputToken,
 } from "@orca-so/whirlpools-core";
-import type { Whirlpool } from "@orca-so/whirlpools-client";
+import type { Whirlpool, Oracle } from "@orca-so/whirlpools-client";
 import {
   AccountsType,
   fetchAllMaybeTickArray,
   fetchWhirlpool,
+  fetchOracle,
   getOracleAddress,
   getSwapV2Instruction,
   getTickArrayAddress,
@@ -37,6 +39,7 @@ import {
 } from "./token";
 import { MEMO_PROGRAM_ADDRESS } from "@solana-program/memo";
 import { fetchAllMint } from "@solana-program/token-2022";
+import { wrapFunctionWithExecution } from "./actionHelpers";
 
 // TODO: allow specify number as well as bigint
 // TODO: transfer hook
@@ -85,6 +88,9 @@ export type SwapInstructions<T extends SwapParams> = {
 
   /** The swap quote, which includes information about the amounts involved in the swap. */
   quote: SwapQuote<T>;
+
+  /** The timestamp when the trade was enabled. */
+  tradeEnableTimestamp: bigint;
 };
 
 function createUninitializedTickArray(
@@ -99,11 +105,13 @@ function createUninitializedTickArray(
       ticks: Array(_TICK_ARRAY_SIZE()).fill({
         initialized: false,
         liquidityNet: 0n,
+        liquidityGross: 0n,
         feeGrowthOutsideA: 0n,
         feeGrowthOutsideB: 0n,
         rewardGrowthsOutside: [0n, 0n, 0n],
       }),
     },
+    space: 0n,
     executable: false,
     lamports: lamports(0n),
     programAddress,
@@ -156,14 +164,30 @@ async function fetchTickArrayOrDefault(
   return tickArrays;
 }
 
+async function getOracle(
+  rpc: Rpc<GetAccountInfoApi>,
+  oracleAddress: Address,
+  whirlpool: Whirlpool,
+): Promise<Oracle | undefined> {
+  // no need to fetch oracle for non-adaptive fee whirlpools
+  const feeTierIndex =
+    whirlpool.feeTierIndexSeed[0] + whirlpool.feeTierIndexSeed[1] * 256;
+  if (whirlpool.tickSpacing == feeTierIndex) {
+    return undefined;
+  }
+  return (await fetchOracle(rpc, oracleAddress)).data;
+}
+
 function getSwapQuote<T extends SwapParams>(
   params: T,
   whirlpool: Whirlpool,
   transferFeeA: TransferFee | undefined,
   transferFeeB: TransferFee | undefined,
   tickArrays: TickArrayFacade[],
+  oracle: Oracle | undefined,
   specifiedTokenA: boolean,
   slippageToleranceBps: number,
+  timestamp: bigint,
 ): SwapQuote<T> {
   if ("inputAmount" in params) {
     return swapQuoteByInputToken(
@@ -171,7 +195,9 @@ function getSwapQuote<T extends SwapParams>(
       specifiedTokenA,
       slippageToleranceBps,
       whirlpool,
+      oracle,
       tickArrays,
+      timestamp,
       transferFeeA,
       transferFeeB,
     ) as SwapQuote<T>;
@@ -182,7 +208,9 @@ function getSwapQuote<T extends SwapParams>(
     specifiedTokenA,
     slippageToleranceBps,
     whirlpool,
+    oracle,
     tickArrays,
+    timestamp,
     transferFeeA,
     transferFeeB,
   ) as SwapQuote<T>;
@@ -201,30 +229,34 @@ function getSwapQuote<T extends SwapParams>(
  * @returns {Promise<SwapInstructions<T>>} - A promise that resolves to an object containing the swap instructions and the swap quote.
  *
  * @example
- * import { swapInstructions } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { setWhirlpoolsConfig, swapInstructions } from '@orca-so/whirlpools';
+ * import { createSolanaRpc, devnet, address } from '@solana/kit';
+ * import { loadWallet } from './utils';
  *
+ * await setWhirlpoolsConfig('solanaDevnet');
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
- *
- * const poolAddress = "POOL_ADDRESS";
- * const mintAddress = "TOKEN_MINT";
+ * const wallet = await loadWallet(); // CAUTION: This wallet is not persistent.
+ * const whirlpoolAddress = address("3KBZiL2g8C7tiJ32hTv5v3KM7aK9htpqTw4cTXz1HvPt");
+ * const mintAddress = address("BRjpCHtyQLNCo8gqRUr8jtdAj5AjPYQaoqbvcZiHok1k");
  * const inputAmount = 1_000_000n;
  *
  * const { instructions, quote } = await swapInstructions(
  *   devnetRpc,
  *   { inputAmount, mint: mintAddress },
- *   poolAddress,
+ *   whirlpoolAddress,
  *   100,
  *   wallet
  * );
+ *
+ * console.log(`Quote estimated token out: ${quote.tokenEstOut}`);
+ * console.log(`Number of instructions:, ${instructions.length}`);
  */
 export async function swapInstructions<T extends SwapParams>(
   rpc: Rpc<
     GetAccountInfoApi &
       GetMultipleAccountsApi &
-      GetMinimumBalanceForRentExemptionApi
+      GetMinimumBalanceForRentExemptionApi &
+      GetEpochInfoApi
   >,
   params: T,
   poolAddress: Address,
@@ -244,10 +276,14 @@ export async function swapInstructions<T extends SwapParams>(
   const oracleAddress = await getOracleAddress(whirlpool.address).then(
     (x) => x[0],
   );
+  const oracle = await getOracle(rpc, oracleAddress, whirlpool.data);
 
   const currentEpoch = await rpc.getEpochInfo().send();
   const transferFeeA = getCurrentTransferFee(tokenA, currentEpoch.epoch);
   const transferFeeB = getCurrentTransferFee(tokenB, currentEpoch.epoch);
+
+  const timestamp = BigInt(Math.floor(Date.now() / 1000));
+  const tradeEnableTimestamp = oracle?.tradeEnableTimestamp ?? 0n;
 
   const quote = getSwapQuote<T>(
     params,
@@ -255,8 +291,10 @@ export async function swapInstructions<T extends SwapParams>(
     transferFeeA,
     transferFeeB,
     tickArrays.map((x) => x.data),
+    oracle,
     specifiedTokenA,
     slippageToleranceBps,
+    timestamp,
   );
   const maxInAmount = "tokenIn" in quote ? quote.tokenIn : quote.tokenMaxIn;
   const aToB = specifiedTokenA === specifiedInput;
@@ -315,5 +353,10 @@ export async function swapInstructions<T extends SwapParams>(
   return {
     quote,
     instructions,
+    tradeEnableTimestamp,
   };
 }
+
+// -------- ACTIONS --------
+
+export const swap = wrapFunctionWithExecution(swapInstructions);

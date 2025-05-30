@@ -7,6 +7,7 @@ import type { InitPoolParams } from "../../src";
 import {
   buildWhirlpoolClient,
   MIN_SQRT_PRICE_BN,
+  NO_ORACLE_DATA,
   NO_TOKEN_EXTENSION_CONTEXT,
   PDAUtil,
   PriceMath,
@@ -21,7 +22,7 @@ import {
 } from "../../src";
 import type { TwoHopSwapParams } from "../../src/instructions";
 import { IGNORE_CACHE } from "../../src/network/public/fetcher";
-import { getTokenBalance, TickSpacing } from "../utils";
+import { getTokenBalance, sleep, TickSpacing } from "../utils";
 import { defaultConfirmOptions } from "../utils/const";
 import type {
   FundedPositionParams,
@@ -32,6 +33,7 @@ import {
   getDefaultAquarium,
   getTokenAccsForPools,
 } from "../utils/init-utils";
+import { PROTOCOL_FEE_RATE_MUL_VALUE } from "../../dist/types/public/constants";
 
 describe("two-hop swap", () => {
   const provider = anchor.AnchorProvider.local(
@@ -834,38 +836,68 @@ describe("two-hop swap", () => {
     // Partial fill on second swap in ExactOut is allowed
     // |--***T**-S-| --> |--***T,limit**-S-| (where *: liquidity, S: start, T: end)
     it("ExactOut, partial fill on second swap", async () => {
-      const aquarium = (await buildTestAquariums(ctx, [{
-        configParams: aqConfig.configParams,
-        initFeeTierParams: aqConfig.initFeeTierParams,
-        initMintParams: aqConfig.initMintParams,
-        initTokenAccParams: [
-          {mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000)},
-        ],
-        initPoolParams: [
-          { ...aqConfig.initPoolParams[0], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1) },
-          { ...aqConfig.initPoolParams[1], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1) },
-        ],
-        initTickArrayRangeParams: [
+      const aquarium = (
+        await buildTestAquariums(ctx, [
           {
-            poolIndex: 0,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
+            configParams: aqConfig.configParams,
+            initFeeTierParams: aqConfig.initFeeTierParams,
+            initMintParams: aqConfig.initMintParams,
+            initTokenAccParams: [
+              { mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000) },
+            ],
+            initPoolParams: [
+              {
+                ...aqConfig.initPoolParams[0],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1),
+              },
+              {
+                ...aqConfig.initPoolParams[1],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1),
+              },
+            ],
+            initTickArrayRangeParams: [
+              {
+                poolIndex: 0,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+              {
+                poolIndex: 1,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+            ],
+            initPositionParams: [
+              {
+                poolIndex: 0,
+                fundParams: [
+                  {
+                    tickLowerIndex: 512,
+                    tickUpperIndex: 1024,
+                    liquidityAmount: new BN(1_000_000_000),
+                  },
+                ],
+              },
+              {
+                poolIndex: 1,
+                fundParams: [
+                  {
+                    tickLowerIndex: 512,
+                    tickUpperIndex: 1024,
+                    liquidityAmount: new BN(1_000_000_000),
+                  },
+                ],
+              },
+            ],
           },
-          {
-            poolIndex: 1,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
-          },
-        ],
-        initPositionParams: [
-          {poolIndex: 0, fundParams: [{tickLowerIndex: 512, tickUpperIndex: 1024, liquidityAmount: new BN(1_000_000_000)}]},
-          {poolIndex: 1, fundParams: [{tickLowerIndex: 512, tickUpperIndex: 1024, liquidityAmount: new BN(1_000_000_000)}]},
-        ],
-      }]))[0];
+        ])
+      )[0];
       const { tokenAccounts, mintKeys, pools } = aquarium;
 
       const whirlpoolOneKey = pools[0].whirlpoolPda.publicKey;
@@ -886,28 +918,43 @@ describe("two-hop swap", () => {
           ctx.program.programId,
           whirlpoolTwoKey,
           ctx.fetcher,
-          IGNORE_CACHE
+          IGNORE_CACHE,
         ),
         tokenExtensionCtx: NO_TOKEN_EXTENSION_CONTEXT,
+        oracleData: NO_ORACLE_DATA,
         whirlpoolData: whirlpoolOne.getData(),
         tokenAmount: new BN(1_000_000),
       };
 
       // 906251 --> 1000000 (end tick: 1004)
-      const quoteSecondWithoutLimit = swapQuoteWithParams({
-        ...quoteParams,
-        sqrtPriceLimit: MIN_SQRT_PRICE_BN,
-      }, Percentage.fromFraction(0, 100));
+      const quoteSecondWithoutLimit = swapQuoteWithParams(
+        {
+          ...quoteParams,
+          sqrtPriceLimit: MIN_SQRT_PRICE_BN,
+        },
+        Percentage.fromFraction(0, 100),
+      );
       assert.ok(quoteSecondWithoutLimit.estimatedEndTickIndex < 1008);
 
       // 762627 --> 841645 (end tick: 1008)
-      const quoteSecondWithLimit = swapQuoteWithParams({
-        ...quoteParams,
-        sqrtPriceLimit: PriceMath.tickIndexToSqrtPriceX64(1008),
-      }, Percentage.fromFraction(0, 100));
+      const quoteSecondWithLimit = swapQuoteWithParams(
+        {
+          ...quoteParams,
+          sqrtPriceLimit: PriceMath.tickIndexToSqrtPriceX64(1008),
+        },
+        Percentage.fromFraction(0, 100),
+      );
       assert.ok(quoteSecondWithLimit.estimatedEndTickIndex == 1008);
-      assert.ok(quoteSecondWithLimit.estimatedAmountOut.lt(quoteSecondWithoutLimit.estimatedAmountOut));
-      assert.ok(quoteSecondWithLimit.estimatedAmountIn.lt(quoteSecondWithoutLimit.estimatedAmountIn));
+      assert.ok(
+        quoteSecondWithLimit.estimatedAmountOut.lt(
+          quoteSecondWithoutLimit.estimatedAmountOut,
+        ),
+      );
+      assert.ok(
+        quoteSecondWithLimit.estimatedAmountIn.lt(
+          quoteSecondWithoutLimit.estimatedAmountIn,
+        ),
+      );
 
       // 821218 --> 906251
       const quoteFirstWithoutLimit = await swapQuoteByOutputToken(
@@ -932,7 +979,10 @@ describe("two-hop swap", () => {
       );
 
       // build without limit
-      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(quoteFirstWithoutLimit, quoteSecondWithoutLimit);
+      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(
+        quoteFirstWithoutLimit,
+        quoteSecondWithoutLimit,
+      );
 
       await assert.rejects(
         toTx(
@@ -948,7 +998,7 @@ describe("two-hop swap", () => {
             tokenAuthority: ctx.wallet.publicKey,
           }),
         ).buildAndExecute(),
-        /0x1795/,  // AmountInAboveMaximum.
+        /0x1795/, // AmountInAboveMaximum.
       );
 
       assert.ok(quoteSecondWithoutLimit.estimatedEndTickIndex > 999);
@@ -969,38 +1019,68 @@ describe("two-hop swap", () => {
     // Reject partial fill result
     // |--***T**-S-| --> |-min,T----**-S-| (where *: liquidity, S: start, T: end)
     it("fails ExactOut, partial fill on second swap, sqrt_price_limit_two == 0", async () => {
-      const aquarium = (await buildTestAquariums(ctx, [{
-        configParams: aqConfig.configParams,
-        initFeeTierParams: aqConfig.initFeeTierParams,
-        initMintParams: aqConfig.initMintParams,
-        initTokenAccParams: [
-          {mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000)},
-        ],
-        initPoolParams: [
-          { ...aqConfig.initPoolParams[0], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(-1) },
-          { ...aqConfig.initPoolParams[1], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(-439296 - 1) },
-        ],
-        initTickArrayRangeParams: [
+      const aquarium = (
+        await buildTestAquariums(ctx, [
           {
-            poolIndex: 0,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
+            configParams: aqConfig.configParams,
+            initFeeTierParams: aqConfig.initFeeTierParams,
+            initMintParams: aqConfig.initMintParams,
+            initTokenAccParams: [
+              { mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000) },
+            ],
+            initPoolParams: [
+              {
+                ...aqConfig.initPoolParams[0],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(-1),
+              },
+              {
+                ...aqConfig.initPoolParams[1],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(-439296 - 1),
+              },
+            ],
+            initTickArrayRangeParams: [
+              {
+                poolIndex: 0,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+              {
+                poolIndex: 1,
+                startTickIndex: -450560,
+                arrayCount: 1,
+                aToB: true,
+              },
+            ],
+            initPositionParams: [
+              {
+                poolIndex: 0,
+                fundParams: [
+                  {
+                    tickLowerIndex: -512,
+                    tickUpperIndex: -128,
+                    liquidityAmount: new BN(5_000_000_000_000),
+                  },
+                ],
+              },
+              {
+                poolIndex: 1,
+                fundParams: [
+                  {
+                    tickLowerIndex: -439296 - 256,
+                    tickUpperIndex: -439296 - 128,
+                    liquidityAmount: new BN(1_000),
+                  },
+                ],
+              },
+            ],
           },
-          {
-            poolIndex: 1,
-            startTickIndex: -450560,
-            arrayCount: 1,
-            aToB: true,
-          },
-        ],
-        initPositionParams: [
-          {poolIndex: 0, fundParams: [{tickLowerIndex: -512, tickUpperIndex: -128, liquidityAmount: new BN(5_000_000_000_000)}]},
-          {poolIndex: 1, fundParams: [{tickLowerIndex: -439296 - 256, tickUpperIndex: -439296 - 128, liquidityAmount: new BN(1_000)}]},
-        ],
-      }]))[0];
+        ])
+      )[0];
       const { tokenAccounts, mintKeys, pools } = aquarium;
 
       const whirlpoolOneKey = pools[0].whirlpoolPda.publicKey;
@@ -1009,7 +1089,7 @@ describe("two-hop swap", () => {
       let whirlpoolTwo = await client.getPool(whirlpoolTwoKey, IGNORE_CACHE);
 
       const [_inputToken, intermediaryToken, outputToken] = mintKeys;
-  
+
       const quoteSecond = await swapQuoteByOutputToken(
         whirlpoolTwo,
         outputToken,
@@ -1019,7 +1099,7 @@ describe("two-hop swap", () => {
         fetcher,
         IGNORE_CACHE,
       );
-  
+
       const quoteFirst = await swapQuoteByOutputToken(
         whirlpoolOne,
         intermediaryToken,
@@ -1029,9 +1109,12 @@ describe("two-hop swap", () => {
         fetcher,
         IGNORE_CACHE,
       );
-    
-      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(quoteFirst, quoteSecond);
-  
+
+      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(
+        quoteFirst,
+        quoteSecond,
+      );
+
       await assert.rejects(
         toTx(
           ctx,
@@ -1043,7 +1126,7 @@ describe("two-hop swap", () => {
             tokenAuthority: ctx.wallet.publicKey,
           }),
         ).buildAndExecute(),
-        /0x17a9/,  // PartialFillError
+        /0x17a9/, // PartialFillError
       );
 
       await toTx(
@@ -1061,38 +1144,68 @@ describe("two-hop swap", () => {
     // Reject partial fill on the first swap by sqrt_price_limit_one = 0
     // |-min,T----**-S-| --> |--***T**-S-| (where *: liquidity, S: start, T: end)
     it("fails ExactOut, partial fill on first swap, sqrt_price_limit_one == 0", async () => {
-      const aquarium = (await buildTestAquariums(ctx, [{
-        configParams: aqConfig.configParams,
-        initFeeTierParams: [{tickSpacing: 128, feeRate: 0}], // to realize input = 1 on second swap
-        initMintParams: aqConfig.initMintParams,
-        initTokenAccParams: [
-          {mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000)},
-        ],
-        initPoolParams: [
-          { ...aqConfig.initPoolParams[0], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(-439296 - 1) },
-          { ...aqConfig.initPoolParams[1], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1) },
-        ],
-        initTickArrayRangeParams: [
+      const aquarium = (
+        await buildTestAquariums(ctx, [
           {
-            poolIndex: 0,
-            startTickIndex: -450560,
-            arrayCount: 1,
-            aToB: true,
+            configParams: aqConfig.configParams,
+            initFeeTierParams: [{ tickSpacing: 128, feeRate: 0 }], // to realize input = 1 on second swap
+            initMintParams: aqConfig.initMintParams,
+            initTokenAccParams: [
+              { mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000) },
+            ],
+            initPoolParams: [
+              {
+                ...aqConfig.initPoolParams[0],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(-439296 - 1),
+              },
+              {
+                ...aqConfig.initPoolParams[1],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1),
+              },
+            ],
+            initTickArrayRangeParams: [
+              {
+                poolIndex: 0,
+                startTickIndex: -450560,
+                arrayCount: 1,
+                aToB: true,
+              },
+              {
+                poolIndex: 1,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+            ],
+            initPositionParams: [
+              {
+                poolIndex: 0,
+                fundParams: [
+                  {
+                    tickLowerIndex: -439296 - 256,
+                    tickUpperIndex: -439296 - 128,
+                    liquidityAmount: new BN(1_000),
+                  },
+                ],
+              },
+              {
+                poolIndex: 1,
+                fundParams: [
+                  {
+                    tickLowerIndex: 512,
+                    tickUpperIndex: 1024,
+                    liquidityAmount: new BN(5_000_000_000_000),
+                  },
+                ],
+              },
+            ],
           },
-          {
-            poolIndex: 1,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
-          },
-        ],
-        initPositionParams: [
-          {poolIndex: 0, fundParams: [{tickLowerIndex: -439296 - 256, tickUpperIndex: -439296 - 128, liquidityAmount: new BN(1_000)}]},
-          {poolIndex: 1, fundParams: [{tickLowerIndex: 512, tickUpperIndex: 1024, liquidityAmount: new BN(5_000_000_000_000)}]},
-        ],
-      }]))[0];
+        ])
+      )[0];
       const { tokenAccounts, mintKeys, pools } = aquarium;
 
       const whirlpoolOneKey = pools[0].whirlpoolPda.publicKey;
@@ -1101,7 +1214,7 @@ describe("two-hop swap", () => {
       let whirlpoolTwo = await client.getPool(whirlpoolTwoKey, IGNORE_CACHE);
 
       const [_inputToken, intermediaryToken, outputToken] = mintKeys;
-  
+
       // 1 --> 1
       const quoteSecond = await swapQuoteByOutputToken(
         whirlpoolTwo,
@@ -1112,7 +1225,7 @@ describe("two-hop swap", () => {
         fetcher,
         IGNORE_CACHE,
       );
-  
+
       // 22337909818 --> 0 (not round up)
       const quoteFirst = await swapQuoteByOutputToken(
         whirlpoolOne,
@@ -1123,9 +1236,12 @@ describe("two-hop swap", () => {
         fetcher,
         IGNORE_CACHE,
       );
-    
-      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(quoteFirst, quoteSecond);
-  
+
+      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(
+        quoteFirst,
+        quoteSecond,
+      );
+
       await assert.rejects(
         toTx(
           ctx,
@@ -1137,7 +1253,7 @@ describe("two-hop swap", () => {
             tokenAuthority: ctx.wallet.publicKey,
           }),
         ).buildAndExecute(),
-        /0x17a9/,  // PartialFillError
+        /0x17a9/, // PartialFillError
       );
     });
 
@@ -1145,38 +1261,68 @@ describe("two-hop swap", () => {
     // Pools are safe, but owner consume intermediate tokens unproportionally
     // |-min,T----**-S-| --> |--***T**-S-| (where *: liquidity, S: start, T: end)
     it("fails ExactOut, partial fill on first swap, sqrt_price_limit_one != 0", async () => {
-      const aquarium = (await buildTestAquariums(ctx, [{
-        configParams: aqConfig.configParams,
-        initFeeTierParams: [{tickSpacing: 128, feeRate: 0}], // to realize input = 1 on second swap
-        initMintParams: aqConfig.initMintParams,
-        initTokenAccParams: [
-          {mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000)},
-        ],
-        initPoolParams: [
-          { ...aqConfig.initPoolParams[0], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(-439296 - 1) },
-          { ...aqConfig.initPoolParams[1], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1) },
-        ],
-        initTickArrayRangeParams: [
+      const aquarium = (
+        await buildTestAquariums(ctx, [
           {
-            poolIndex: 0,
-            startTickIndex: -450560,
-            arrayCount: 1,
-            aToB: true,
+            configParams: aqConfig.configParams,
+            initFeeTierParams: [{ tickSpacing: 128, feeRate: 0 }], // to realize input = 1 on second swap
+            initMintParams: aqConfig.initMintParams,
+            initTokenAccParams: [
+              { mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000) },
+            ],
+            initPoolParams: [
+              {
+                ...aqConfig.initPoolParams[0],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(-439296 - 1),
+              },
+              {
+                ...aqConfig.initPoolParams[1],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1),
+              },
+            ],
+            initTickArrayRangeParams: [
+              {
+                poolIndex: 0,
+                startTickIndex: -450560,
+                arrayCount: 1,
+                aToB: true,
+              },
+              {
+                poolIndex: 1,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+            ],
+            initPositionParams: [
+              {
+                poolIndex: 0,
+                fundParams: [
+                  {
+                    tickLowerIndex: -439296 - 256,
+                    tickUpperIndex: -439296 - 128,
+                    liquidityAmount: new BN(1_000),
+                  },
+                ],
+              },
+              {
+                poolIndex: 1,
+                fundParams: [
+                  {
+                    tickLowerIndex: 512,
+                    tickUpperIndex: 1024,
+                    liquidityAmount: new BN(5_000_000_000_000),
+                  },
+                ],
+              },
+            ],
           },
-          {
-            poolIndex: 1,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
-          },
-        ],
-        initPositionParams: [
-          {poolIndex: 0, fundParams: [{tickLowerIndex: -439296 - 256, tickUpperIndex: -439296 - 128, liquidityAmount: new BN(1_000)}]},
-          {poolIndex: 1, fundParams: [{tickLowerIndex: 512, tickUpperIndex: 1024, liquidityAmount: new BN(5_000_000_000_000)}]},
-        ],
-      }]))[0];
+        ])
+      )[0];
       const { tokenAccounts, mintKeys, pools } = aquarium;
 
       const whirlpoolOneKey = pools[0].whirlpoolPda.publicKey;
@@ -1185,7 +1331,7 @@ describe("two-hop swap", () => {
       let whirlpoolTwo = await client.getPool(whirlpoolTwoKey, IGNORE_CACHE);
 
       const [_inputToken, intermediaryToken, outputToken] = mintKeys;
-  
+
       // 1 --> 1
       const quoteSecond = await swapQuoteByOutputToken(
         whirlpoolTwo,
@@ -1196,7 +1342,7 @@ describe("two-hop swap", () => {
         fetcher,
         IGNORE_CACHE,
       );
-  
+
       // 22337909818 --> 0 (not round up)
       const quoteFirst = await swapQuoteByOutputToken(
         whirlpoolOne,
@@ -1207,9 +1353,12 @@ describe("two-hop swap", () => {
         fetcher,
         IGNORE_CACHE,
       );
-    
-      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(quoteFirst, quoteSecond);
-  
+
+      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(
+        quoteFirst,
+        quoteSecond,
+      );
+
       await assert.rejects(
         toTx(
           ctx,
@@ -1221,45 +1370,75 @@ describe("two-hop swap", () => {
             tokenAuthority: ctx.wallet.publicKey,
           }),
         ).buildAndExecute(),
-        /0x17a3/,  // IntermediateTokenAmountMismatch
+        /0x17a3/, // IntermediateTokenAmountMismatch
       );
     });
 
     // Partial fill on the first swap in ExactIn is allowed.
     // |--***T,limit**-S-| -> |--***T**-S--| (where *: liquidity, S: start, T: end)
     it("ExactIn, partial fill on first swap", async () => {
-      const aquarium = (await buildTestAquariums(ctx, [{
-        configParams: aqConfig.configParams,
-        initFeeTierParams: aqConfig.initFeeTierParams,
-        initMintParams: aqConfig.initMintParams,
-        initTokenAccParams: [
-          {mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000)},
-        ],
-        initPoolParams: [
-          { ...aqConfig.initPoolParams[0], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1) },
-          { ...aqConfig.initPoolParams[1], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1) },
-        ],
-        initTickArrayRangeParams: [
+      const aquarium = (
+        await buildTestAquariums(ctx, [
           {
-            poolIndex: 0,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
+            configParams: aqConfig.configParams,
+            initFeeTierParams: aqConfig.initFeeTierParams,
+            initMintParams: aqConfig.initMintParams,
+            initTokenAccParams: [
+              { mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000) },
+            ],
+            initPoolParams: [
+              {
+                ...aqConfig.initPoolParams[0],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1),
+              },
+              {
+                ...aqConfig.initPoolParams[1],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1),
+              },
+            ],
+            initTickArrayRangeParams: [
+              {
+                poolIndex: 0,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+              {
+                poolIndex: 1,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+            ],
+            initPositionParams: [
+              {
+                poolIndex: 0,
+                fundParams: [
+                  {
+                    tickLowerIndex: 512,
+                    tickUpperIndex: 1024,
+                    liquidityAmount: new BN(1_000_000_000),
+                  },
+                ],
+              },
+              {
+                poolIndex: 1,
+                fundParams: [
+                  {
+                    tickLowerIndex: 512,
+                    tickUpperIndex: 1024,
+                    liquidityAmount: new BN(1_000_000_000),
+                  },
+                ],
+              },
+            ],
           },
-          {
-            poolIndex: 1,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
-          },
-        ],
-        initPositionParams: [
-          {poolIndex: 0, fundParams: [{tickLowerIndex: 512, tickUpperIndex: 1024, liquidityAmount: new BN(1_000_000_000)}]},
-          {poolIndex: 1, fundParams: [{tickLowerIndex: 512, tickUpperIndex: 1024, liquidityAmount: new BN(1_000_000_000)}]},
-        ],
-      }]))[0];
+        ])
+      )[0];
       const { tokenAccounts, mintKeys, pools } = aquarium;
 
       const whirlpoolOneKey = pools[0].whirlpoolPda.publicKey;
@@ -1280,28 +1459,43 @@ describe("two-hop swap", () => {
           ctx.program.programId,
           whirlpoolOneKey,
           ctx.fetcher,
-          IGNORE_CACHE
+          IGNORE_CACHE,
         ),
         tokenExtensionCtx: NO_TOKEN_EXTENSION_CONTEXT,
+        oracleData: NO_ORACLE_DATA,
         whirlpoolData: whirlpoolOne.getData(),
         tokenAmount: new BN(1_000_000),
       };
 
       // 1000000 --> 1103339
-      const quoteFirstWithoutLimit = swapQuoteWithParams({
-        ...quoteParams,
-        sqrtPriceLimit: MIN_SQRT_PRICE_BN,
-      }, Percentage.fromFraction(0, 100));
+      const quoteFirstWithoutLimit = swapQuoteWithParams(
+        {
+          ...quoteParams,
+          sqrtPriceLimit: MIN_SQRT_PRICE_BN,
+        },
+        Percentage.fromFraction(0, 100),
+      );
       assert.ok(quoteFirstWithoutLimit.estimatedEndTickIndex < 1010);
 
       // 667266 --> 736476
-      const quoteFirstWithLimit = swapQuoteWithParams({
-        ...quoteParams,
-        sqrtPriceLimit: PriceMath.tickIndexToSqrtPriceX64(1010),
-      }, Percentage.fromFraction(0, 100));
+      const quoteFirstWithLimit = swapQuoteWithParams(
+        {
+          ...quoteParams,
+          sqrtPriceLimit: PriceMath.tickIndexToSqrtPriceX64(1010),
+        },
+        Percentage.fromFraction(0, 100),
+      );
       assert.ok(quoteFirstWithLimit.estimatedEndTickIndex == 1010);
-      assert.ok(quoteFirstWithLimit.estimatedAmountIn.lt(quoteFirstWithoutLimit.estimatedAmountIn));
-      assert.ok(quoteFirstWithLimit.estimatedAmountOut.lt(quoteFirstWithoutLimit.estimatedAmountOut));
+      assert.ok(
+        quoteFirstWithLimit.estimatedAmountIn.lt(
+          quoteFirstWithoutLimit.estimatedAmountIn,
+        ),
+      );
+      assert.ok(
+        quoteFirstWithLimit.estimatedAmountOut.lt(
+          quoteFirstWithoutLimit.estimatedAmountOut,
+        ),
+      );
 
       // 1103339 --> 1217224
       const quoteSecondWithoutLimit = await swapQuoteByInputToken(
@@ -1326,7 +1520,10 @@ describe("two-hop swap", () => {
       );
 
       // build without limit
-      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(quoteFirstWithoutLimit, quoteSecondWithoutLimit);
+      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(
+        quoteFirstWithoutLimit,
+        quoteSecondWithoutLimit,
+      );
 
       await assert.rejects(
         toTx(
@@ -1337,12 +1534,13 @@ describe("two-hop swap", () => {
             sqrtPriceLimitOne: PriceMath.tickIndexToSqrtPriceX64(1010), // partial fill is allowed
             sqrtPriceLimitTwo: new BN(0), // partial fill on second swap is NOT allowd
             // +1 to check output amount
-            otherAmountThreshold: quoteSecondWithLimit.estimatedAmountOut.addn(1),
+            otherAmountThreshold:
+              quoteSecondWithLimit.estimatedAmountOut.addn(1),
             ...getParamsFromPools([pools[0], pools[1]], tokenAccounts),
             tokenAuthority: ctx.wallet.publicKey,
           }),
         ).buildAndExecute(),
-        /0x1794/,  // AmountOutBelowMinimum
+        /0x1794/, // AmountOutBelowMinimum
       );
 
       assert.ok(quoteSecondWithoutLimit.estimatedEndTickIndex > 999);
@@ -1356,7 +1554,7 @@ describe("two-hop swap", () => {
           otherAmountThreshold: quoteSecondWithLimit.estimatedAmountOut,
           ...getParamsFromPools([pools[0], pools[1]], tokenAccounts),
           tokenAuthority: ctx.wallet.publicKey,
-      }),
+        }),
       ).buildAndExecute();
     });
 
@@ -1364,38 +1562,68 @@ describe("two-hop swap", () => {
     // Pools and owner are safe, but owner will receive unconsumed intermediate tokens
     // |--***T**-S-| -> |--***T,limit**-S--| (where *: liquidity, S: start, T: end)
     it("fails ExactIn, partial fill on second swap", async () => {
-      const aquarium = (await buildTestAquariums(ctx, [{
-        configParams: aqConfig.configParams,
-        initFeeTierParams: aqConfig.initFeeTierParams,
-        initMintParams: aqConfig.initMintParams,
-        initTokenAccParams: [
-          {mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000)},
-          {mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000)},
-        ],
-        initPoolParams: [
-          { ...aqConfig.initPoolParams[0], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1) },
-          { ...aqConfig.initPoolParams[1], tickSpacing: 128, initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1) },
-        ],
-        initTickArrayRangeParams: [
+      const aquarium = (
+        await buildTestAquariums(ctx, [
           {
-            poolIndex: 0,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
+            configParams: aqConfig.configParams,
+            initFeeTierParams: aqConfig.initFeeTierParams,
+            initMintParams: aqConfig.initMintParams,
+            initTokenAccParams: [
+              { mintIndex: 0, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 1, mintAmount: new BN(1_000_000_000_000_000) },
+              { mintIndex: 2, mintAmount: new BN(1_000_000_000_000_000) },
+            ],
+            initPoolParams: [
+              {
+                ...aqConfig.initPoolParams[0],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1),
+              },
+              {
+                ...aqConfig.initPoolParams[1],
+                tickSpacing: 128,
+                initSqrtPrice: PriceMath.tickIndexToSqrtPriceX64(1024 + 1),
+              },
+            ],
+            initTickArrayRangeParams: [
+              {
+                poolIndex: 0,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+              {
+                poolIndex: 1,
+                startTickIndex: 0,
+                arrayCount: 3,
+                aToB: true,
+              },
+            ],
+            initPositionParams: [
+              {
+                poolIndex: 0,
+                fundParams: [
+                  {
+                    tickLowerIndex: 512,
+                    tickUpperIndex: 1024,
+                    liquidityAmount: new BN(1_000_000_000),
+                  },
+                ],
+              },
+              {
+                poolIndex: 1,
+                fundParams: [
+                  {
+                    tickLowerIndex: 512,
+                    tickUpperIndex: 1024,
+                    liquidityAmount: new BN(1_000_000_000),
+                  },
+                ],
+              },
+            ],
           },
-          {
-            poolIndex: 1,
-            startTickIndex: 0,
-            arrayCount: 3,
-            aToB: true,
-          },
-        ],
-        initPositionParams: [
-          {poolIndex: 0, fundParams: [{tickLowerIndex: 512, tickUpperIndex: 1024, liquidityAmount: new BN(1_000_000_000)}]},
-          {poolIndex: 1, fundParams: [{tickLowerIndex: 512, tickUpperIndex: 1024, liquidityAmount: new BN(1_000_000_000)}]},
-        ],
-      }]))[0];
+        ])
+      )[0];
       const { tokenAccounts, mintKeys, pools } = aquarium;
 
       const whirlpoolOneKey = pools[0].whirlpoolPda.publicKey;
@@ -1404,7 +1632,7 @@ describe("two-hop swap", () => {
       let whirlpoolTwo = await client.getPool(whirlpoolTwoKey, IGNORE_CACHE);
 
       const [inputToken, intermediaryToken, _outputToken] = mintKeys;
-        
+
       // 1000000 --> 1103339
       const quoteFirst = await swapQuoteByInputToken(
         whirlpoolOne,
@@ -1426,8 +1654,11 @@ describe("two-hop swap", () => {
         fetcher,
         IGNORE_CACHE,
       );
-    
-      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(quoteFirst, quoteSecond);
+
+      const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(
+        quoteFirst,
+        quoteSecond,
+      );
 
       assert.ok(quoteSecond.estimatedEndTickIndex < 1002);
       await assert.rejects(
@@ -1441,7 +1672,7 @@ describe("two-hop swap", () => {
             tokenAuthority: ctx.wallet.publicKey,
           }),
         ).buildAndExecute(),
-        /0x17a3/,  // IntermediateTokenAmountMismatch
+        /0x17a3/, // IntermediateTokenAmountMismatch
       );
 
       assert.ok(quoteSecond.estimatedEndTickIndex > 999);
@@ -1454,8 +1685,112 @@ describe("two-hop swap", () => {
           tokenAuthority: ctx.wallet.publicKey,
         }),
       ).buildAndExecute();
-
     });
+  });
+
+  it("emit Traded event", async () => {
+    const aquarium = (await buildTestAquariums(ctx, [aqConfig]))[0];
+    const { tokenAccounts, mintKeys, pools } = aquarium;
+
+    const whirlpoolOneKey = pools[0].whirlpoolPda.publicKey;
+    const whirlpoolTwoKey = pools[1].whirlpoolPda.publicKey;
+    let whirlpoolOne = await client.getPool(whirlpoolOneKey, IGNORE_CACHE);
+    let whirlpoolTwo = await client.getPool(whirlpoolTwoKey, IGNORE_CACHE);
+
+    const [inputToken, intermediaryToken, _outputToken] = mintKeys;
+
+    const quote = await swapQuoteByInputToken(
+      whirlpoolOne,
+      inputToken,
+      new BN(1000),
+      Percentage.fromFraction(1, 100),
+      ctx.program.programId,
+      fetcher,
+      IGNORE_CACHE,
+    );
+
+    const quote2 = await swapQuoteByInputToken(
+      whirlpoolTwo,
+      intermediaryToken,
+      quote.estimatedAmountOut,
+      Percentage.fromFraction(1, 100),
+      ctx.program.programId,
+      fetcher,
+      IGNORE_CACHE,
+    );
+
+    const twoHopQuote = twoHopSwapQuoteFromSwapQuotes(quote, quote2);
+
+    const whirlpoolOnePre = whirlpoolOne.getData();
+    const whirlpoolTwoPre = whirlpoolTwo.getData();
+
+    // event verification
+    let eventVerifiedOne = false;
+    let eventVerifiedTwo = false;
+    let detectedSignatureOne = null;
+    let detectedSignatureTwo = null;
+    const listener = ctx.program.addEventListener(
+      "Traded",
+      (event, _slot, signature) => {
+        // verify
+        if (event.whirlpool.equals(whirlpoolOneKey)) {
+          detectedSignatureOne = signature;
+          assert.ok(event.whirlpool.equals(whirlpoolOneKey));
+          assert.ok(event.aToB === quote.aToB);
+          assert.ok(event.preSqrtPrice.eq(whirlpoolOnePre.sqrtPrice));
+          assert.ok(event.postSqrtPrice.eq(quote.estimatedEndSqrtPrice));
+          assert.ok(event.inputAmount.eq(quote.estimatedAmountIn));
+          assert.ok(event.outputAmount.eq(quote.estimatedAmountOut));
+          assert.ok(event.inputTransferFee.isZero()); // v1 doesn't handle TransferFee extension
+          assert.ok(event.outputTransferFee.isZero()); // v1 doesn't handle TransferFee extension
+
+          const protocolFee = quote.estimatedFeeAmount
+            .muln(whirlpoolOnePre.protocolFeeRate)
+            .div(PROTOCOL_FEE_RATE_MUL_VALUE);
+          const lpFee = quote.estimatedFeeAmount.sub(protocolFee);
+          assert.ok(event.lpFee.eq(lpFee));
+          assert.ok(event.protocolFee.eq(protocolFee));
+
+          eventVerifiedOne = true;
+        } else if (event.whirlpool.equals(whirlpoolTwoKey)) {
+          detectedSignatureTwo = signature;
+          assert.ok(event.whirlpool.equals(whirlpoolTwoKey));
+          assert.ok(event.aToB === quote2.aToB);
+          assert.ok(event.preSqrtPrice.eq(whirlpoolTwoPre.sqrtPrice));
+          assert.ok(event.postSqrtPrice.eq(quote2.estimatedEndSqrtPrice));
+          assert.ok(event.inputAmount.eq(quote2.estimatedAmountIn));
+          assert.ok(event.outputAmount.eq(quote2.estimatedAmountOut));
+          assert.ok(event.inputTransferFee.isZero()); // v1 doesn't handle TransferFee extension
+          assert.ok(event.outputTransferFee.isZero()); // v1 doesn't handle TransferFee extension
+
+          const protocolFee = quote2.estimatedFeeAmount
+            .muln(whirlpoolTwoPre.protocolFeeRate)
+            .div(PROTOCOL_FEE_RATE_MUL_VALUE);
+          const lpFee = quote2.estimatedFeeAmount.sub(protocolFee);
+          assert.ok(event.lpFee.eq(lpFee));
+          assert.ok(event.protocolFee.eq(protocolFee));
+
+          eventVerifiedTwo = true;
+        }
+      },
+    );
+
+    const signature = await toTx(
+      ctx,
+      WhirlpoolIx.twoHopSwapIx(ctx.program, {
+        ...twoHopQuote,
+        ...getParamsFromPools([pools[0], pools[1]], tokenAccounts),
+        tokenAuthority: ctx.wallet.publicKey,
+      }),
+    ).buildAndExecute();
+
+    await sleep(2000);
+    assert.equal(signature, detectedSignatureOne);
+    assert.equal(signature, detectedSignatureTwo);
+    assert.ok(eventVerifiedOne);
+    assert.ok(eventVerifiedTwo);
+
+    ctx.program.removeEventListener(listener);
   });
 
   function getParamsFromPools(

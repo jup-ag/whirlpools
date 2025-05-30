@@ -1,18 +1,37 @@
 import { getWhirlpoolsConfigExtensionAddress } from "@orca-so/whirlpools-client";
-import type { Address, TransactionSigner } from "@solana/web3.js";
-import { address, createNoopSigner } from "@solana/web3.js";
+import type { Address, TransactionSigner, KeyPairSigner } from "@solana/kit";
+import {
+  address,
+  createNoopSigner,
+  isAddress,
+  createKeyPairFromBytes,
+  createSignerFromKeyPair,
+} from "@solana/kit";
 
+export {
+  setComputeUnitMarginMultiplier,
+  setJitoBlockEngineUrl,
+  setJitoTipSetting,
+  setPriorityFeeSetting,
+  setRpc,
+  setJitoFeePercentile,
+  setPriorityFeePercentile,
+  getRpcConfig,
+} from "@orca-so/tx-sender";
 /**
  * The default (null) address.
  */
 export const DEFAULT_ADDRESS = address("11111111111111111111111111111111");
 
 /**
- * The default WhirlpoolsConfig address.
+ * The WhirlpoolsConfig addresses for various networks.
  */
-export const DEFAULT_WHIRLPOOLS_CONFIG_ADDRESS = address(
-  "2LecshUwdy9xi7meFgHtFJQNSKk4KdTrcpvaB56dP2NQ",
-);
+export const DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES = {
+  solanaMainnet: address("2LecshUwdy9xi7meFgHtFJQNSKk4KdTrcpvaB56dP2NQ"),
+  solanaDevnet: address("FcrweFY1G9HJAHG5inkGB6pKg1HZ6x9UC2WioAfWrGkR"),
+  eclipseMainnet: address("FVG4oDbGv16hqTUbovjyGmtYikn6UBEnazz6RVDMEFwv"),
+  eclipseTestnet: address("FPydDjRdZu9sT7HVd6ANhfjh85KLq21Pefr5YWWMRPFp"),
+};
 
 /**
  * The default WhirlpoolsConfigExtension address.
@@ -25,7 +44,7 @@ export const DEFAULT_WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS = address(
  * The WhirlpoolsConfig address.
  */
 export let WHIRLPOOLS_CONFIG_ADDRESS: Address =
-  DEFAULT_WHIRLPOOLS_CONFIG_ADDRESS;
+  DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES.solanaMainnet;
 
 /**
  * The WhirlpoolsConfigExtension address.
@@ -36,15 +55,23 @@ export let WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS: Address =
 /**
  * Updates the WhirlpoolsConfig and WhirlpoolsConfigExtension addresses.
  *
- * @param {Address} whirlpoolsConfigAddress - A WhirlpoolsConfig address.
+ * @param {Address | keyof typeof NETWORK_ADDRESSES} config - A WhirlpoolsConfig address or a network name.
  * @returns {Promise<void>} - Resolves when the addresses have been updated.
  */
 export async function setWhirlpoolsConfig(
-  whirlpoolsConfigAddress: Address,
+  config: Address | keyof typeof DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES,
 ): Promise<void> {
-  WHIRLPOOLS_CONFIG_ADDRESS = whirlpoolsConfigAddress;
+  if (isAddress(config)) {
+    WHIRLPOOLS_CONFIG_ADDRESS = config;
+  } else {
+    WHIRLPOOLS_CONFIG_ADDRESS =
+      DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES[
+        config as keyof typeof DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES
+      ];
+  }
+
   WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS =
-    await getWhirlpoolsConfigExtensionAddress(whirlpoolsConfigAddress).then(
+    await getWhirlpoolsConfigExtensionAddress(WHIRLPOOLS_CONFIG_ADDRESS).then(
       (x) => x[0],
     );
 }
@@ -102,40 +129,48 @@ export function setDefaultSlippageToleranceBps(
 }
 
 /**
- * Defines the strategy for handling SOL wrapping in a transaction.
+ * Defines the strategy for handling Native Mint wrapping in a transaction.
  *
  * - **Keypair**:
- *   Creates an auxiliary token account using a keypair. Optionally adds funds to the account. Closes it at the end of the transaction.
+ *   Creates an auxiliary token account using a keypair.
+ *   Optionally adds funds to the account.
+ *   Closes it at the end of the transaction.
  *
  * - **Seed**:
  *   Functions similarly to Keypair, but uses a seed account instead.
  *
  * - **ATA**:
- *   Creates an associated token account (ATA) for `NATIVE_MINT` if necessary. Optionally adds funds to the ATA. Closes it at the end of the transaction if it was newly created.
+ *   Treats the native balance and associated token account (ATA) for `NATIVE_MINT` as one.
+ *   Will create the ATA if it doesn't exist.
+ *   Optionally adds funds to the account.
+ *   Closes it at the end of the transaction if it did not exist before.
  *
  * - **None**:
- *   Uses or creates the ATA without performing any SOL wrapping or unwrapping.
+ *   Uses or creates the ATA without performing any Native Mint wrapping or unwrapping.
  */
-export type SolWrappingStrategy = "keypair" | "seed" | "ata" | "none";
+export type NativeMintWrappingStrategy = "keypair" | "seed" | "ata" | "none";
 
 /**
- * The default sol wrapping strategy.
+ * The default native mint wrapping strategy.
  */
-export const DEFAULT_SOL_WRAPPING_STRATEGY: SolWrappingStrategy = "keypair";
+export const DEFAULT_NATIVE_MINT_WRAPPING_STRATEGY: NativeMintWrappingStrategy =
+  "keypair";
 
 /**
- * The currently selected sol wrapping strategy.
+ * The currently selected native mint wrapping strategy.
  */
-export let SOL_WRAPPING_STRATEGY: SolWrappingStrategy =
-  DEFAULT_SOL_WRAPPING_STRATEGY;
+export let NATIVE_MINT_WRAPPING_STRATEGY: NativeMintWrappingStrategy =
+  DEFAULT_NATIVE_MINT_WRAPPING_STRATEGY;
 
 /**
- * Sets the sol wrapping strategy.
+ * Sets the native mint wrapping strategy.
  *
- * @param {SolWrappingStrategy} strategy - The sol wrapping strategy.
+ * @param {NativeMintWrappingStrategy} strategy - The native mint wrapping strategy.
  */
-export function setSolWrappingStrategy(strategy: SolWrappingStrategy): void {
-  SOL_WRAPPING_STRATEGY = strategy;
+export function setNativeMintWrappingStrategy(
+  strategy: NativeMintWrappingStrategy,
+): void {
+  NATIVE_MINT_WRAPPING_STRATEGY = strategy;
 }
 
 /**
@@ -144,10 +179,44 @@ export function setSolWrappingStrategy(strategy: SolWrappingStrategy): void {
  * @returns {Promise<void>} - Resolves when the configuration has been reset.
  */
 export function resetConfiguration() {
-  WHIRLPOOLS_CONFIG_ADDRESS = DEFAULT_WHIRLPOOLS_CONFIG_ADDRESS;
+  WHIRLPOOLS_CONFIG_ADDRESS = DEFAULT_WHIRLPOOLS_CONFIG_ADDRESSES.solanaMainnet;
   WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS =
     DEFAULT_WHIRLPOOLS_CONFIG_EXTENSION_ADDRESS;
   FUNDER = DEFAULT_FUNDER;
   SLIPPAGE_TOLERANCE_BPS = DEFAULT_SLIPPAGE_TOLERANCE_BPS;
-  SOL_WRAPPING_STRATEGY = DEFAULT_SOL_WRAPPING_STRATEGY;
+  NATIVE_MINT_WRAPPING_STRATEGY = DEFAULT_NATIVE_MINT_WRAPPING_STRATEGY;
+}
+
+let _payer: KeyPairSigner | undefined;
+
+/**
+ * Sets the payer from a private key byte array.
+ *
+ * @param {Uint8Array<ArrayBuffer>} pkBytes - The private key bytes to create the payer from.
+ * @returns {Promise<KeyPairSigner>} - A promise that resolves to the created signer.
+ *
+ * @example
+ * ```ts
+ * // Set payer from a private key byte array
+ * const privateKeyBytes = new Uint8Array([
+ *   55, 244, 186, 115, 93, 3, 9, 47, 12, 168,
+ *   86, 1, 5, 155, 127, 3, 44, 165, 155, 3,
+ *   112, 1, 3, 99, 3, 211, 3, 77, 153,
+ *   44, 1, 179
+ * ]);
+ * const signer = await setPayerFromBytes(privateKeyBytes);
+ * ```
+ */
+export async function setPayerFromBytes(pkBytes: Uint8Array<ArrayBuffer>) {
+  const kp = await createKeyPairFromBytes(pkBytes);
+  const signer = await createSignerFromKeyPair(kp);
+  _payer = signer;
+  return signer;
+}
+
+export function getPayer(): KeyPairSigner {
+  if (!_payer) {
+    throw new Error("Payer not set. Call setPayer() first.");
+  }
+  return _payer;
 }

@@ -8,10 +8,11 @@ import type {
   WhirlpoolAccountFetchOptions,
   WhirlpoolAccountFetcherInterface,
 } from "./network/public/fetcher";
-import type { WhirlpoolRouter } from "./router/public";
 import type {
   DecreaseLiquidityInput,
   IncreaseLiquidityInput,
+  LockConfigData,
+  LockTypeData,
   PositionData,
   TickData,
   WhirlpoolData,
@@ -40,14 +41,6 @@ export interface WhirlpoolClient {
    * @return an WhirlpoolAccountCacheInterface instance
    */
   getFetcher: () => WhirlpoolAccountFetcherInterface;
-
-  /**
-   * Get a WhirlpoolRouter to help generate the best prices when transacting across a set of pools.
-   * @param poolAddresses the addresses of the Whirlpool account addresses to route through
-   * @returns a {@link WhirlpoolRouter} instance
-   * @deprecated WhirlpoolRouter will be removed in the future release. Please use endpoint which provides qoutes.
-   */
-  getRouter: (poolAddresses: Address[]) => Promise<WhirlpoolRouter>;
 
   /**
    * Get a Whirlpool object to interact with the Whirlpool account at the given address.
@@ -468,4 +461,42 @@ export interface Position {
     ataPayer?: Address,
     opts?: WhirlpoolAccountFetchOptions,
   ) => Promise<TransactionBuilder[]>;
+
+  /**
+   * Reset a position's range. Requires liquidity to be zero.
+   *
+   * @param tickLowerIndex - the tick index for the lower bound of this position
+   * @param tickUpperIndex - the tick index for the upper bound of this position
+   * @return the transactions that will reset the position's range. The transactions must be executed serially.
+   */
+  resetPositionRange: (
+    tickLowerIndex: number,
+    tickUpperIndex: number,
+    positionWallet?: Address,
+  ) => Promise<TransactionBuilder>;
+
+  /**
+   * Lock this position.
+   *
+   * Please note that this function is only available for TokenExtensions based positions.
+   * Also the range of the position must be FullRange.
+   *
+   * Please be careful when using this function as it will lock the position and prevent any liquidity changes including withdrawals.
+   *
+   * @param lockType - the type of lock to apply to the position.
+   * @param positionWallet - the wallet to that houses the position token. If null, the WhirlpoolContext wallet is used.
+   * @param funder - the wallet that will fund the cost needed to initialize LockConfig account. If null, the WhirlpoolContext wallet is used.
+   * @return the transactions that will lock the position.
+   */
+  lock: (
+    lockType: LockTypeData,
+    positionWallet?: Address,
+    funder?: Address,
+  ) => Promise<TransactionBuilder>;
+
+  /**
+   * Return LockConfig account data for this position if it is locked.
+   * @return LockConfigData for this position if it is locked. Otherwise, return null.
+   */
+  getLockConfigData: () => Promise<LockConfigData | null>;
 }

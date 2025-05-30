@@ -1,6 +1,6 @@
 {
   "name": "@orca-so/whirlpools-client",
-  "version": "0.0.1",
+  "version": "2.0.0",
   "description": "Typescript client to interact with Orca's on-chain Whirlpool program.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -19,29 +19,31 @@
   "sideEffects": false,
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "../../LICENSE"
   ],
   "scripts": {
-    "build": "node ./kinobi.js && tsup src/index.ts --format cjs,esm --dts --sourcemap",
+    "build": "node ./codama.js && tsup src/index.ts --format cjs,esm --dts --sourcemap",
     "test": "vitest run tests",
+    "deploy": "../../scripts/deploy-npm",
     "clean": "rimraf dist src/generated"
   },
   "peerDependencies": {
-    "@solana/web3.js": "^2.0.0-rc.1"
+    "@solana/kit": "^2.1.0"
   },
   "devDependencies": {
-    "@kinobi-so/nodes-from-anchor": "^0.22.0",
-    "@kinobi-so/renderers-js": "^0.22.0",
+    "@codama/nodes-from-anchor": "^1.1.11",
+    "@codama/renderers-js": "^1.2.10",
     "@orca-so/whirlpools-program": "*",
-    "@solana/web3.js": "^2.0.0-rc.1",
-    "kinobi": "^0.22.0",
-    "typescript": "^5.6.3"
+    "@solana/kit": "^2.1.0",
+    "codama": "^1.2.11",
+    "typescript": "^5.8.2"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/orca-so/whirlpools.git"
   },
-  "license": "Apache-2.0",
+  "license": "SEE LICENSE IN LICENSE",
   "keywords": [
     "solana",
     "crypto",

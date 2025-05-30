@@ -1,11 +1,12 @@
 import type { Position, PositionBundle } from "@orca-so/whirlpools-client";
 import {
-  fetchAllMaybePosition,
-  fetchAllMaybePositionBundle,
-  fetchAllPosition,
+  decodePosition,
+  decodePositionBundle,
+  fetchAllPositionWithFilter,
   getBundledPositionAddress,
   getPositionAddress,
   getPositionBundleAddress,
+  positionWhirlpoolFilter,
 } from "@orca-so/whirlpools-client";
 import { _POSITION_BUNDLE_SIZE } from "@orca-so/whirlpools-core";
 import { getTokenDecoder, TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
@@ -14,10 +15,12 @@ import type {
   Account,
   Address,
   GetMultipleAccountsApi,
+  GetProgramAccountsApi,
   GetTokenAccountsByOwnerApi,
   Rpc,
-} from "@solana/web3.js";
-import { getBase58Encoder } from "@solana/web3.js";
+} from "@solana/kit";
+import { assertAccountExists, getBase64Encoder } from "@solana/kit";
+import { fetchMultipleAccountsBatched } from "./utils";
 
 /**
  * Represents a Position account.
@@ -79,11 +82,10 @@ function getPositionInBundleAddresses(
  *
  * @example
  * import { fetchPositionsForOwner } from '@orca-so/whirlpools';
- * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/web3.js';
+ * import { generateKeyPairSigner, createSolanaRpc, devnet } from '@solana/kit';
  *
  * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
- * const wallet = await generateKeyPairSigner();
- * await devnetRpc.requestAirdrop(wallet.address, lamports(1000000000n)).send();
+ * const wallet = address("INSERT_WALLET_ADDRESS");
  *
  * const positions = await fetchPositionsForOwner(devnetRpc, wallet.address);
  */
@@ -93,20 +95,28 @@ export async function fetchPositionsForOwner(
 ): Promise<PositionData[]> {
   const [tokenAccounts, token2022Accounts] = await Promise.all([
     rpc
-      .getTokenAccountsByOwner(owner, { programId: TOKEN_PROGRAM_ADDRESS })
+      .getTokenAccountsByOwner(
+        owner,
+        { programId: TOKEN_PROGRAM_ADDRESS },
+        { encoding: "base64" },
+      )
       .send(),
     rpc
-      .getTokenAccountsByOwner(owner, { programId: TOKEN_2022_PROGRAM_ADDRESS })
+      .getTokenAccountsByOwner(
+        owner,
+        { programId: TOKEN_2022_PROGRAM_ADDRESS },
+        { encoding: "base64" },
+      )
       .send(),
   ]);
 
-  const encoder = getBase58Encoder();
+  const encoder = getBase64Encoder();
   const decoder = getTokenDecoder();
 
   const potentialTokens = [...tokenAccounts.value, ...token2022Accounts.value]
     .map((x) => ({
-      ...decoder.decode(encoder.encode(x.account.data)),
-      owner: x.account.owner,
+      ...decoder.decode(encoder.encode(x.account.data[0])),
+      tokenProgram: x.account.owner,
     }))
     .filter((x) => x.amount === 1n);
 
@@ -120,11 +130,17 @@ export async function fetchPositionsForOwner(
     ),
   );
 
-  // FIXME: need to batch if more than 100 position bundles?
-  const [positions, positionBundles] = await Promise.all([
-    fetchAllMaybePosition(rpc, positionAddresses),
-    fetchAllMaybePositionBundle(rpc, positionBundleAddresses),
-  ]);
+  const positions = await fetchMultipleAccountsBatched(
+    rpc,
+    positionAddresses,
+    decodePosition,
+  );
+
+  const positionBundles = await fetchMultipleAccountsBatched(
+    rpc,
+    positionBundleAddresses,
+    decodePositionBundle,
+  );
 
   const bundledPositionAddresses = await Promise.all(
     positionBundles
@@ -132,10 +148,19 @@ export async function fetchPositionsForOwner(
       .flatMap((x) => getPositionInBundleAddresses(x.data)),
   );
 
-  const bundledPositions = await fetchAllPosition(
-    rpc,
-    bundledPositionAddresses,
-  );
+  const bundledPositions = (
+    await fetchMultipleAccountsBatched(
+      rpc,
+      bundledPositionAddresses,
+      decodePosition,
+    )
+  )
+    .filter((x) => x.exists)
+    .map((x) => {
+      assertAccountExists(x);
+      return x;
+    });
+
   const bundledPositionMap = bundledPositions.reduce((acc, x) => {
     const current = acc.get(x.data.positionMint) ?? [];
     return acc.set(x.data.positionMint, [...current, x]);
@@ -151,7 +176,7 @@ export async function fetchPositionsForOwner(
     if (position.exists) {
       positionsOrBundles.push({
         ...position,
-        tokenProgram: token.owner,
+        tokenProgram: token.tokenProgram,
         isPositionBundle: false,
       });
     }
@@ -162,11 +187,41 @@ export async function fetchPositionsForOwner(
       positionsOrBundles.push({
         ...positionBundle,
         positions,
-        tokenProgram: token.owner,
+        tokenProgram: token.tokenProgram,
         isPositionBundle: true,
       });
     }
   }
 
   return positionsOrBundles;
+}
+
+/**
+ * Fetches all positions for a given Whirlpool.
+ *
+ * @param {SolanaRpc} rpc - The Solana RPC client used to fetch positions.
+ * @param {Address} whirlpool - The address of the Whirlpool.
+ * @returns {Promise<HydratedPosition[]>} - A promise that resolves to an array of hydrated positions.
+ *
+ * @example
+ * import { fetchPositionsInWhirlpool } from '@orca-so/whirlpools';
+ * import { createSolanaRpc, devnet, address } from '@solana/kit';
+ *
+ * const devnetRpc = createSolanaRpc(devnet('https://api.devnet.solana.com'));
+ *
+ * const whirlpool = address("Czfq3xZZDmsdGdUyrNLtRhGc47cXcZtLG4crryfu44zE");
+ * const positions = await fetchPositionsInWhirlpool(devnetRpc, whirlpool);
+ */
+export async function fetchPositionsInWhirlpool(
+  rpc: Rpc<GetProgramAccountsApi>,
+  whirlpool: Address,
+): Promise<HydratedPosition[]> {
+  const positions = await fetchAllPositionWithFilter(
+    rpc,
+    positionWhirlpoolFilter(whirlpool),
+  );
+  return positions.map((x) => ({
+    ...x,
+    isPositionBundle: false,
+  }));
 }

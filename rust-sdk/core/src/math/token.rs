@@ -1,5 +1,5 @@
 use crate::{
-    ErrorCode, TransferFee, AMOUNT_EXCEEDS_MAX_U64, ARITHMETIC_OVERFLOW, BPS_DENOMINATOR,
+    CoreError, TransferFee, AMOUNT_EXCEEDS_MAX_U64, ARITHMETIC_OVERFLOW, BPS_DENOMINATOR,
     FEE_RATE_DENOMINATOR, INVALID_SLIPPAGE_TOLERANCE, INVALID_TRANSFER_FEE, MAX_SQRT_PRICE,
     MIN_SQRT_PRICE, SQRT_PRICE_OUT_OF_BOUNDS, U128,
 };
@@ -24,7 +24,7 @@ pub fn try_get_amount_delta_a(
     sqrt_price_2: U128,
     liquidity: U128,
     round_up: bool,
-) -> Result<u64, ErrorCode> {
+) -> Result<u64, CoreError> {
     let (sqrt_price_lower, sqrt_price_upper) =
         order_prices(sqrt_price_1.into(), sqrt_price_2.into());
     let sqrt_price_diff = sqrt_price_upper - sqrt_price_lower;
@@ -66,7 +66,7 @@ pub fn try_get_amount_delta_b(
     sqrt_price_2: U128,
     liquidity: U128,
     round_up: bool,
-) -> Result<u64, ErrorCode> {
+) -> Result<u64, CoreError> {
     let (sqrt_price_lower, sqrt_price_upper) =
         order_prices(sqrt_price_1.into(), sqrt_price_2.into());
     let sqrt_price_diff = sqrt_price_upper - sqrt_price_lower;
@@ -99,7 +99,7 @@ pub fn try_get_next_sqrt_price_from_a(
     current_liquidity: U128,
     amount: u64,
     specified_input: bool,
-) -> Result<U128, ErrorCode> {
+) -> Result<U128, CoreError> {
     if amount == 0 {
         return Ok(current_sqrt_price);
     }
@@ -156,7 +156,7 @@ pub fn try_get_next_sqrt_price_from_b(
     current_liquidity: U128,
     amount: u64,
     specified_input: bool,
-) -> Result<U128, ErrorCode> {
+) -> Result<U128, CoreError> {
     if amount == 0 {
         return Ok(current_sqrt_price);
     }
@@ -199,7 +199,7 @@ pub fn try_get_next_sqrt_price_from_b(
 /// # Returns
 /// - `u64`: The amount after the fee has been applied
 #[cfg_attr(feature = "wasm", wasm_expose)]
-pub fn try_apply_transfer_fee(amount: u64, transfer_fee: TransferFee) -> Result<u64, ErrorCode> {
+pub fn try_apply_transfer_fee(amount: u64, transfer_fee: TransferFee) -> Result<u64, CoreError> {
     if transfer_fee.fee_bps > BPS_DENOMINATOR {
         return Err(INVALID_TRANSFER_FEE);
     }
@@ -231,7 +231,7 @@ pub fn try_apply_transfer_fee(amount: u64, transfer_fee: TransferFee) -> Result<
 pub fn try_reverse_apply_transfer_fee(
     amount: u64,
     transfer_fee: TransferFee,
-) -> Result<u64, ErrorCode> {
+) -> Result<u64, CoreError> {
     if transfer_fee.fee_bps > BPS_DENOMINATOR {
         Err(INVALID_TRANSFER_FEE)
     } else if transfer_fee.fee_bps == 0 {
@@ -276,7 +276,7 @@ pub fn try_reverse_apply_transfer_fee(
 pub fn try_get_max_amount_with_slippage_tolerance(
     amount: u64,
     slippage_tolerance_bps: u16,
-) -> Result<u64, ErrorCode> {
+) -> Result<u64, CoreError> {
     if slippage_tolerance_bps > BPS_DENOMINATOR {
         return Err(INVALID_SLIPPAGE_TOLERANCE);
     }
@@ -298,7 +298,7 @@ pub fn try_get_max_amount_with_slippage_tolerance(
 pub fn try_get_min_amount_with_slippage_tolerance(
     amount: u64,
     slippage_tolerance_bps: u16,
-) -> Result<u64, ErrorCode> {
+) -> Result<u64, CoreError> {
     if slippage_tolerance_bps > BPS_DENOMINATOR {
         return Err(INVALID_SLIPPAGE_TOLERANCE);
     }
@@ -318,7 +318,7 @@ pub fn try_get_min_amount_with_slippage_tolerance(
 /// # Returns
 /// - `u64`: The amount after the fee has been applied
 #[cfg_attr(feature = "wasm", wasm_expose)]
-pub fn try_apply_swap_fee(amount: u64, fee_rate: u16) -> Result<u64, ErrorCode> {
+pub fn try_apply_swap_fee(amount: u64, fee_rate: u32) -> Result<u64, CoreError> {
     let product = <u128>::from(FEE_RATE_DENOMINATOR) - <u128>::from(fee_rate);
     let result = try_mul_div(amount, product, FEE_RATE_DENOMINATOR.into(), false)?;
     Ok(result)
@@ -335,7 +335,7 @@ pub fn try_apply_swap_fee(amount: u64, fee_rate: u16) -> Result<u64, ErrorCode> 
 /// # Returns
 /// - `u64`: The amount before the fee has been applied
 #[cfg_attr(feature = "wasm", wasm_expose)]
-pub fn try_reverse_apply_swap_fee(amount: u64, fee_rate: u16) -> Result<u64, ErrorCode> {
+pub fn try_reverse_apply_swap_fee(amount: u64, fee_rate: u32) -> Result<u64, CoreError> {
     let denominator = <u128>::from(FEE_RATE_DENOMINATOR) - <u128>::from(fee_rate);
     let result = try_mul_div(amount, FEE_RATE_DENOMINATOR.into(), denominator, true)?;
     Ok(result)
@@ -348,7 +348,7 @@ fn try_mul_div(
     product: u128,
     denominator: u128,
     round_up: bool,
-) -> Result<u64, ErrorCode> {
+) -> Result<u64, CoreError> {
     if amount == 0 || product == 0 {
         return Ok(0);
     }
@@ -377,6 +377,8 @@ fn order_prices(a: u128, b: u128) -> (u128, u128) {
 
 #[cfg(all(test, not(feature = "wasm")))]
 mod tests {
+    use crate::FEE_RATE_HARD_LIMIT;
+
     use super::*;
 
     #[test]
@@ -676,7 +678,8 @@ mod tests {
         assert_eq!(try_apply_swap_fee(10000, 0), Ok(10000));
         assert_eq!(try_apply_swap_fee(10000, 1000), Ok(9990));
         assert_eq!(try_apply_swap_fee(10000, 10000), Ok(9900));
-        assert_eq!(try_apply_swap_fee(10000, u16::MAX), Ok(9344));
+        assert_eq!(try_apply_swap_fee(10000, u16::MAX as u32), Ok(9344));
+        assert_eq!(try_apply_swap_fee(10000, FEE_RATE_HARD_LIMIT), Ok(9000));
         assert_eq!(try_apply_swap_fee(u64::MAX, 1000), Ok(18428297329635842063));
         assert_eq!(
             try_apply_swap_fee(u64::MAX, 10000),
@@ -690,7 +693,11 @@ mod tests {
         assert_eq!(try_reverse_apply_swap_fee(10000, 0), Ok(10000));
         assert_eq!(try_reverse_apply_swap_fee(9990, 1000), Ok(10000));
         assert_eq!(try_reverse_apply_swap_fee(9900, 10000), Ok(10000));
-        assert_eq!(try_reverse_apply_swap_fee(9344, u16::MAX), Ok(10000));
+        assert_eq!(try_reverse_apply_swap_fee(9344, u16::MAX as u32), Ok(10000));
+        assert_eq!(
+            try_reverse_apply_swap_fee(9000, FEE_RATE_HARD_LIMIT),
+            Ok(10000)
+        );
         assert_eq!(
             try_reverse_apply_swap_fee(u64::MAX, 1000),
             Err(AMOUNT_EXCEEDS_MAX_U64)

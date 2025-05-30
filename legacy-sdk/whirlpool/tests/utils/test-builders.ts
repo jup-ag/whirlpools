@@ -1,14 +1,20 @@
 import type { AnchorProvider } from "@coral-xyz/anchor";
 import type { PDA } from "@orca-so/common-sdk";
 import { AddressUtil, MathUtil, Percentage } from "@orca-so/common-sdk";
-import { getAssociatedTokenAddressSync, TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+  getAssociatedTokenAddressSync,
+  TOKEN_2022_PROGRAM_ID,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import type { PublicKey } from "@solana/web3.js";
 import { Keypair } from "@solana/web3.js";
 import Decimal from "decimal.js";
 import { createAndMintToAssociatedTokenAccount, createMint } from ".";
 import type {
+  AdaptiveFeeConstantsData,
   InitConfigParams,
   InitFeeTierParams,
+  InitializeAdaptiveFeeTierParams,
   InitPoolParams,
   InitTickArrayParams,
   OpenBundledPositionParams,
@@ -133,6 +139,62 @@ export const generateDefaultInitFeeTierParams = (
     defaultFeeRate,
     feeAuthority: whirlpoolFeeAuthority,
     funder: funder || context.wallet.publicKey,
+  };
+};
+
+export const generateDefaultInitAdaptiveFeeTierParams = (
+  context: WhirlpoolContext,
+  whirlpoolsConfigKey: PublicKey,
+  whirlpoolFeeAuthority: PublicKey,
+  feeTierIndex: number,
+  tickSpacing: number,
+  defaultBaseFeeRate: number,
+  presetAdaptiveFeeConstants: AdaptiveFeeConstantsData,
+  initializePoolAuthority?: PublicKey,
+  delegatedFeeAuthority?: PublicKey,
+  funder?: PublicKey,
+): InitializeAdaptiveFeeTierParams => {
+  const feeTierPda = PDAUtil.getFeeTier(
+    context.program.programId,
+    whirlpoolsConfigKey,
+    feeTierIndex,
+  );
+  return {
+    whirlpoolsConfig: whirlpoolsConfigKey,
+    feeAuthority: whirlpoolFeeAuthority,
+    feeTierIndex,
+    feeTierPda,
+    tickSpacing,
+    initializePoolAuthority,
+    delegatedFeeAuthority,
+    defaultBaseFeeRate,
+    presetFilterPeriod: presetAdaptiveFeeConstants.filterPeriod,
+    presetDecayPeriod: presetAdaptiveFeeConstants.decayPeriod,
+    presetReductionFactor: presetAdaptiveFeeConstants.reductionFactor,
+    presetAdaptiveFeeControlFactor:
+      presetAdaptiveFeeConstants.adaptiveFeeControlFactor,
+    presetMaxVolatilityAccumulator:
+      presetAdaptiveFeeConstants.maxVolatilityAccumulator,
+    presetTickGroupSize: presetAdaptiveFeeConstants.tickGroupSize,
+    presetMajorSwapThresholdTicks:
+      presetAdaptiveFeeConstants.majorSwapThresholdTicks,
+    funder: funder || context.wallet.publicKey,
+  };
+};
+
+export const getDefaultPresetAdaptiveFeeConstants = (
+  tickSpacing: number,
+  tickGroupSize: number = tickSpacing,
+  majorSwapThresholdTicks: number = tickSpacing,
+): AdaptiveFeeConstantsData => {
+  return {
+    filterPeriod: 30,
+    decayPeriod: 600,
+    reductionFactor: 500,
+    adaptiveFeeControlFactor: 4_000,
+    maxVolatilityAccumulator: 350_000,
+    tickGroupSize,
+    majorSwapThresholdTicks,
   };
 };
 
