@@ -135,24 +135,24 @@ pub fn initialize_token_metadata_extension<'info>(
     };
 
     // we need to add rent for TokenMetadata extension to reallocate space
-    let token_mint_data = position_mint.try_borrow_data()?;
-    let token_mint_unpacked =
-        StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&token_mint_data)?;
-    let new_account_len = token_mint_unpacked
-        .try_get_new_account_len::<spl_token_metadata_interface::state::TokenMetadata>(&metadata)?;
-    let new_rent_exempt_minimum = Rent::get()?.minimum_balance(new_account_len);
-    let additional_rent = new_rent_exempt_minimum.saturating_sub(position_mint.lamports());
-    drop(token_mint_data); // CPI call will borrow the account data
+    // let token_mint_data = position_mint.try_borrow_data()?;
+    // let token_mint_unpacked =
+    //     StateWithExtensions::<spl_token_2022::state::Mint>::unpack(&token_mint_data)?;
+    // let new_account_len = token_mint_unpacked
+    //     .try_get_new_account_len::<spl_token_metadata_interface::state::TokenMetadata>()?;
+    // let new_rent_exempt_minimum = Rent::get()?.minimum_balance(new_account_len);
+    // let additional_rent = new_rent_exempt_minimum.saturating_sub(position_mint.lamports());
+    // drop(token_mint_data); // CPI call will borrow the account data
 
     // transfer additional rent
-    invoke(
-        &transfer(funder.key, position_mint.key, additional_rent),
-        &[
-            funder.to_account_info(),
-            position_mint.to_account_info(),
-            system_program.to_account_info(),
-        ],
-    )?;
+    // invoke(
+    //     &transfer(funder.key, position_mint.key, additional_rent),
+    //     &[
+    //         funder.to_account_info(),
+    //         position_mint.to_account_info(),
+    //         system_program.to_account_info(),
+    //     ],
+    // )?;
 
     // initialize TokenMetadata extension
     // update authority: WP_NFT_UPDATE_AUTH

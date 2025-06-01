@@ -1,11 +1,17 @@
 [workspace]
 resolver = "2"
-members = [
-    "programs/*"
-]
+members = ["programs/*"]
 exclude = [
     "rust-sdk",
     "ts-sdk",
     "docs",
     "examples"
 ]
+
+[workspace.dependencies]
+anchor-lang = "0.30.1"
+anchor-spl = "0.30.1"
+
+[patch.crates-io]
+anchor-lang = { git = "https://github.com/coral-xyz/anchor.git", rev = "4cdb0ebe8f613f7dbbd5c4b00571139b2517898f" }
+anchor-spl = { git = "https://github.com/coral-xyz/anchor.git", rev = "4cdb0ebe8f613f7dbbd5c4b00571139b2517898f" }

@@ -91,7 +91,7 @@ pub fn handler(
         amount_specified_is_input,
         a_to_b,
         timestamp,
-        &adaptive_fee_info,
+        adaptive_fee_info.clone(),
     )?;
 
     if amount_specified_is_input {

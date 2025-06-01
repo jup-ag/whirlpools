@@ -4,6 +4,113 @@ use crate::util::ProxiedTickArray;
 use anchor_lang::prelude::*;
 use std::cell::RefMut;
 
+pub struct SwapTickSequenceRef<'info> {
+    arrays: Vec<&'info TickArray>,
+}
+
+/// Duplicated from impl SwapTickSequence
+impl<'info> SwapTickSequenceRef<'info> {
+    pub fn new(
+        ta0: &'info TickArray,
+        ta1: Option<&'info TickArray>,
+        ta2: Option<&'info TickArray>,
+    ) -> Self {
+        let mut vec = Vec::with_capacity(3);
+        vec.push(ta0);
+        if ta1.is_some() {
+            vec.push(ta1.unwrap());
+        }
+        if ta2.is_some() {
+            vec.push(ta2.unwrap());
+        }
+        Self { arrays: vec }
+    }
+
+    pub fn get_tick(
+        &self,
+        array_index: usize,
+        tick_index: i32,
+        tick_spacing: u16,
+    ) -> Result<&Tick> {
+        let array = self.arrays.get(array_index);
+        match array {
+            Some(array) => array.get_tick(tick_index, tick_spacing),
+            _ => Err(ErrorCode::TickArrayIndexOutofBounds.into()),
+        }
+    }
+
+    pub fn get_tick_offset(
+        &self,
+        array_index: usize,
+        tick_index: i32,
+        tick_spacing: u16,
+    ) -> Result<isize> {
+        let array = self.arrays.get(array_index);
+        match array {
+            Some(array) => array.tick_offset(tick_index, tick_spacing),
+            _ => Err(ErrorCode::TickArrayIndexOutofBounds.into()),
+        }
+    }
+
+    pub fn get_next_initialized_tick_index(
+        &self,
+        tick_index: i32,
+        tick_spacing: u16,
+        a_to_b: bool,
+        start_array_index: usize,
+    ) -> Result<(usize, i32)> {
+        let ticks_in_array = TICK_ARRAY_SIZE * tick_spacing as i32;
+        let mut search_index = tick_index;
+        let mut array_index = start_array_index;
+
+        // Keep looping the arrays until an initialized tick index in the subsequent tick-arrays found.
+        loop {
+            // If we get to the end of the array sequence and next_index is still not found, throw error
+            let next_array = match self.arrays.get(array_index) {
+                Some(array) => array,
+                None => return Err(ErrorCode::TickArraySequenceInvalidIndex.into()),
+            };
+
+            let next_index =
+                next_array.get_next_init_tick_index(search_index, tick_spacing, a_to_b)?;
+
+            match next_index {
+                Some(next_index) => {
+                    return Ok((array_index, next_index));
+                }
+                None => {
+                    // If we are at the last valid tick array, return the min/max tick index
+                    if a_to_b && next_array.is_min_tick_array() {
+                        return Ok((array_index, MIN_TICK_INDEX));
+                    } else if !a_to_b && next_array.is_max_tick_array(tick_spacing) {
+                        return Ok((array_index, MAX_TICK_INDEX));
+                    }
+
+                    // If we are at the last tick array in the sequencer, return the last tick
+                    if array_index + 1 == self.arrays.len() {
+                        if a_to_b {
+                            return Ok((array_index, next_array.start_tick_index));
+                        } else {
+                            let last_tick = next_array.start_tick_index + ticks_in_array - 1;
+                            return Ok((array_index, last_tick));
+                        }
+                    }
+
+                    // No initialized index found. Move the search-index to the 1st search position
+                    // of the next array in sequence.
+                    search_index = if a_to_b {
+                        next_array.start_tick_index - 1
+                    } else {
+                        next_array.start_tick_index + ticks_in_array - 1
+                    };
+
+                    array_index += 1;
+                }
+            }
+        }
+    }
+}
+
 pub struct SwapTickSequence<'info> {
     arrays: Vec<ProxiedTickArray<'info>>,
 }

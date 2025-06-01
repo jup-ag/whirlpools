@@ -79,16 +79,17 @@ pub fn handler(
         tick_upper_index,
     )?;
 
-    mint_position_token_with_metadata_and_remove_authority(
-        whirlpool,
-        position_mint,
-        &ctx.accounts.position_token_account,
-        &ctx.accounts.position_metadata_account,
-        &ctx.accounts.metadata_update_auth,
-        &ctx.accounts.funder,
-        &ctx.accounts.metadata_program,
-        &ctx.accounts.token_program,
-        &ctx.accounts.system_program,
-        &ctx.accounts.rent,
-    )
+    // mint_position_token_with_metadata_and_remove_authority(
+    //     whirlpool,
+    //     position_mint,
+    //     &ctx.accounts.position_token_account,
+    //     &ctx.accounts.position_metadata_account,
+    //     &ctx.accounts.metadata_update_auth,
+    //     &ctx.accounts.funder,
+    //     &ctx.accounts.metadata_program,
+    //     &ctx.accounts.token_program,
+    //     &ctx.accounts.system_program,
+    //     &ctx.accounts.rent,
+    // )
+    Ok(())
 }

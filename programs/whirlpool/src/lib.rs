@@ -297,23 +297,23 @@ pub mod whirlpool {
     /// - `TickArrayIndexOutofBounds` - The swap loop attempted to access an invalid array index during tick crossing.
     /// - `LiquidityOverflow` - Liquidity value overflowed 128bits during tick crossing.
     /// - `InvalidTickSpacing` - The swap pool was initialized with tick-spacing of 0.
-    pub fn swap(
-        ctx: Context<Swap>,
-        amount: u64,
-        other_amount_threshold: u64,
-        sqrt_price_limit: u128,
-        amount_specified_is_input: bool,
-        a_to_b: bool,
-    ) -> Result<()> {
-        instructions::swap::handler(
-            ctx,
-            amount,
-            other_amount_threshold,
-            sqrt_price_limit,
-            amount_specified_is_input,
-            a_to_b,
-        )
-    }
+    // pub fn swap(
+    //     ctx: Context<Swap>,
+    //     amount: u64,
+    //     other_amount_threshold: u64,
+    //     sqrt_price_limit: u128,
+    //     amount_specified_is_input: bool,
+    //     a_to_b: bool,
+    // ) -> Result<()> {
+    //     instructions::swap::handler(
+    //         ctx,
+    //         amount,
+    //         other_amount_threshold,
+    //         sqrt_price_limit,
+    //         amount_specified_is_input,
+    //         a_to_b,
+    //     )
+    // }
 
     /// Close a position in a Whirlpool. Burns the position token in the owner's wallet.
     ///
@@ -489,28 +489,28 @@ pub mod whirlpool {
     /// - `InvalidTickSpacing` - The swap pool was initialized with tick-spacing of 0.
     /// - `InvalidIntermediaryMint` - Error if the intermediary mint between hop one and two do not equal.
     /// - `DuplicateTwoHopPool` - Error if whirlpool one & two are the same pool.
-    #[allow(clippy::too_many_arguments)]
-    pub fn two_hop_swap(
-        ctx: Context<TwoHopSwap>,
-        amount: u64,
-        other_amount_threshold: u64,
-        amount_specified_is_input: bool,
-        a_to_b_one: bool,
-        a_to_b_two: bool,
-        sqrt_price_limit_one: u128,
-        sqrt_price_limit_two: u128,
-    ) -> Result<()> {
-        instructions::two_hop_swap::handler(
-            ctx,
-            amount,
-            other_amount_threshold,
-            amount_specified_is_input,
-            a_to_b_one,
-            a_to_b_two,
-            sqrt_price_limit_one,
-            sqrt_price_limit_two,
-        )
-    }
+    // #[allow(clippy::too_many_arguments)]
+    // pub fn two_hop_swap(
+    //     ctx: Context<TwoHopSwap>,
+    //     amount: u64,
+    //     other_amount_threshold: u64,
+    //     amount_specified_is_input: bool,
+    //     a_to_b_one: bool,
+    //     a_to_b_two: bool,
+    //     sqrt_price_limit_one: u128,
+    //     sqrt_price_limit_two: u128,
+    // ) -> Result<()> {
+    //     instructions::two_hop_swap::handler(
+    //         ctx,
+    //         amount,
+    //         other_amount_threshold,
+    //         amount_specified_is_input,
+    //         a_to_b_one,
+    //         a_to_b_two,
+    //         sqrt_price_limit_one,
+    //         sqrt_price_limit_two,
+    //     )
+    // }
 
     /// Initializes a PositionBundle account that bundles several positions.
     /// A unique token will be minted to represent the position bundle in the users wallet.

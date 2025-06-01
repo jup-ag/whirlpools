@@ -429,12 +429,12 @@ impl<'info> OracleAccessor<'info> {
         }
 
         let data = oracle_account_info.try_borrow_data()?;
-        if data.len() < Oracle::discriminator().len() {
+        if data.len() < Oracle::DISCRIMINATOR.len() {
             return Err(anchor_lang::error::ErrorCode::AccountDiscriminatorNotFound.into());
         }
 
         let disc_bytes = arrayref::array_ref![data, 0, 8];
-        if disc_bytes != &Oracle::discriminator() {
+        if disc_bytes != &Oracle::DISCRIMINATOR {
             return Err(anchor_lang::error::ErrorCode::AccountDiscriminatorMismatch.into());
         }
 

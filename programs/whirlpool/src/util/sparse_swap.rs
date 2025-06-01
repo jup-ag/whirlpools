@@ -289,12 +289,12 @@ fn peek_tick_array(account_info: AccountInfo<'_>) -> Result<TickArrayAccount<'_>
     }
 
     let data = account_info.try_borrow_data()?;
-    if data.len() < TickArray::discriminator().len() {
+    if data.len() < TickArray::DISCRIMINATOR.len() {
         return Err(anchor_lang::error::ErrorCode::AccountDiscriminatorNotFound.into());
     }
 
     let disc_bytes = arrayref::array_ref![data, 0, 8];
-    if disc_bytes != &TickArray::discriminator() {
+    if disc_bytes != &TickArray::DISCRIMINATOR {
         return Err(anchor_lang::error::ErrorCode::AccountDiscriminatorMismatch.into());
     }
 
