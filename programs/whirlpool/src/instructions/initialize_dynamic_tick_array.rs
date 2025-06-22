@@ -100,8 +100,8 @@ pub fn handler(
         let tick_array = DynamicTickArrayLoader::load_mut(&mut data[8..]);
         tick_array.initialize(&ctx.accounts.whirlpool, start_tick_index)
     } else if idempotent
-        && (data[0..8] == DynamicTickArray::DISCRIMINATOR
-            || data[0..8] == FixedTickArray::DISCRIMINATOR)
+        && (data[0..8] == *DynamicTickArray::DISCRIMINATOR
+            || data[0..8] == *FixedTickArray::DISCRIMINATOR)
     {
         Ok(())
     } else {
