@@ -105,7 +105,7 @@ impl Discriminator for DynamicTickArray {
     const DISCRIMINATOR: &'static [u8] = __private::DynamicTickArray::DISCRIMINATOR;
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DynamicTickArrayLoader([u8; DynamicTickArray::MAX_LEN]);
 
 #[cfg(test)]
