@@ -12,7 +12,7 @@ use crate::{
 
 use crate::state::{load_tick_array_mut, LoadedTickArrayMut};
 
-pub(crate) enum ProxiedTickArray<'a> {
+pub enum ProxiedTickArray<'a> {
     Initialized(LoadedTickArrayMut<'a>),
     Uninitialized(ZeroedTickArray),
 }
