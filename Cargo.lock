@@ -2404,13 +2404,14 @@ dependencies = [
 
 [[package]]
 name = "whirlpool"
-version = "0.4.1"
+version = "0.5.0"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "arrayref",
  "borsh 0.10.4",
  "bytemuck",
+ "num_enum 0.7.2",
  "proptest",
  "serde",
  "serde_json",

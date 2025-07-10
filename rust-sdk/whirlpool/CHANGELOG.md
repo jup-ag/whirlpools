@@ -1,5 +1,21 @@
 # @orca-so/whirlpools-rust
 
+## 4.0.0
+
+### Major Changes
+
+- [#970](https://github.com/orca-so/whirlpools/pull/970) [`2509ad9`](https://github.com/orca-so/whirlpools/commit/2509ad9d9894a38c922e6e84a6a3a9de5e9ccd2d) Thanks [@yugure-orca](https://github.com/yugure-orca)! - Dynamic TickArray
+
+### Patch Changes
+
+- [#974](https://github.com/orca-so/whirlpools/pull/974) [`6352a9b`](https://github.com/orca-so/whirlpools/commit/6352a9b61a574fb62440a7dca9a933af02847db5) Thanks [@yugure-orca](https://github.com/yugure-orca)! - Relax DefaultAccountState restriction, Add ScaledUiAmount and Pausable support, Use ImmutableOwner for vault accounts
+
+## 3.1.0
+
+### Minor Changes
+
+- [#971](https://github.com/orca-so/whirlpools/pull/971) [`aa69979`](https://github.com/orca-so/whirlpools/commit/aa699796d86a6d51825df4214de5334ea8630636) Thanks [@calintje](https://github.com/calintje)! - Add configurable balance checking in token account preparation, allowing users to disable balance validation to get quotes and instructions even with insufficient token balances.
+
 ## 3.0.1
 
 ### Patch Changes
