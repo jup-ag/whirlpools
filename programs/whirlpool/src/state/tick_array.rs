@@ -115,14 +115,16 @@ pub fn load_tick_array<'a>(
     let discriminator = array_ref![data, 0, 8];
 
     let tick_array: LoadedTickArray<'a> = match *discriminator {
-        FixedTickArray::DISCRIMINATOR => Ref::map(data, |data| {
+        discriminator if discriminator == FixedTickArray::DISCRIMINATOR => Ref::map(data, |data| {
             let tick_array: &FixedTickArray = bytemuck::from_bytes(&data[8..]);
             tick_array
         }),
-        DynamicTickArray::DISCRIMINATOR => Ref::map(data, |data| {
-            let tick_array: &DynamicTickArrayLoader = DynamicTickArrayLoader::load(&data[8..]);
-            tick_array
-        }),
+        discriminator if discriminator == DynamicTickArray::DISCRIMINATOR => {
+            Ref::map(data, |data| {
+                let tick_array: &DynamicTickArrayLoader = DynamicTickArrayLoader::load(&data[8..]);
+                tick_array
+            })
+        }
         _ => return Err(ErrorCode::AccountDiscriminatorMismatch.into()),
     };
 
@@ -155,16 +157,20 @@ pub fn load_tick_array_mut<'a, 'info>(
 
     let discriminator = array_ref![data, 0, 8];
     let tick_array: LoadedTickArrayMut<'a> = match *discriminator {
-        FixedTickArray::DISCRIMINATOR => RefMut::map(data, |data| {
-            let tick_array: &mut FixedTickArray =
-                bytemuck::from_bytes_mut(&mut data.deref_mut()[8..]);
-            tick_array
-        }),
-        DynamicTickArray::DISCRIMINATOR => RefMut::map(data, |data| {
-            let tick_array: &mut DynamicTickArrayLoader =
-                DynamicTickArrayLoader::load_mut(&mut data.deref_mut()[8..]);
-            tick_array
-        }),
+        discriminator if discriminator == FixedTickArray::DISCRIMINATOR => {
+            RefMut::map(data, |data| {
+                let tick_array: &mut FixedTickArray =
+                    bytemuck::from_bytes_mut(&mut data.deref_mut()[8..]);
+                tick_array
+            })
+        }
+        discriminator if discriminator == DynamicTickArray::DISCRIMINATOR => {
+            RefMut::map(data, |data| {
+                let tick_array: &mut DynamicTickArrayLoader =
+                    DynamicTickArrayLoader::load_mut(&mut data.deref_mut()[8..]);
+                tick_array
+            })
+        }
         _ => return Err(ErrorCode::AccountDiscriminatorMismatch.into()),
     };
 

@@ -101,12 +101,8 @@ mod __private {
     pub struct DynamicTickArray {}
 }
 
-#[cfg(not(feature = "idl-build"))]
 impl Discriminator for DynamicTickArray {
-    const DISCRIMINATOR: [u8; 8] = __private::DynamicTickArray::DISCRIMINATOR;
-    fn discriminator() -> [u8; 8] {
-        Self::DISCRIMINATOR
-    }
+    const DISCRIMINATOR: &[u8] = __private::DynamicTickArray::DISCRIMINATOR;
 }
 
 #[derive(Debug)]
