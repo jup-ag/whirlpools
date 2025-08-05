@@ -102,7 +102,7 @@ mod __private {
 }
 
 impl Discriminator for DynamicTickArray {
-    const DISCRIMINATOR: &[u8] = __private::DynamicTickArray::DISCRIMINATOR;
+    const DISCRIMINATOR: &'static [u8] = __private::DynamicTickArray::DISCRIMINATOR;
 }
 
 #[derive(Debug)]
