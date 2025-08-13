@@ -62,21 +62,23 @@ pub fn handler(ctx: Context<InitializePositionBundleWithMetadata>) -> Result<()>
 
     let bump = ctx.bumps.position_bundle;
 
-    mint_position_bundle_token_with_metadata_and_remove_authority(
-        &ctx.accounts.funder,
-        &ctx.accounts.position_bundle,
-        position_bundle_mint,
-        &ctx.accounts.position_bundle_token_account,
-        &ctx.accounts.position_bundle_metadata,
-        &ctx.accounts.metadata_update_auth,
-        &ctx.accounts.metadata_program,
-        &ctx.accounts.token_program,
-        &ctx.accounts.system_program,
-        &ctx.accounts.rent,
-        &[
-            b"position_bundle".as_ref(),
-            position_bundle_mint.key().as_ref(),
-            &[bump],
-        ],
-    )
+    // mint_position_bundle_token_with_metadata_and_remove_authority(
+    //     &ctx.accounts.funder,
+    //     &ctx.accounts.position_bundle,
+    //     position_bundle_mint,
+    //     &ctx.accounts.position_bundle_token_account,
+    //     &ctx.accounts.position_bundle_metadata,
+    //     &ctx.accounts.metadata_update_auth,
+    //     &ctx.accounts.metadata_program,
+    //     &ctx.accounts.token_program,
+    //     &ctx.accounts.system_program,
+    //     &ctx.accounts.rent,
+    //     &[
+    //         b"position_bundle".as_ref(),
+    //         position_bundle_mint.key().as_ref(),
+    //         &[bump],
+    //     ],
+    // )
+
+    Ok(())
 }

@@ -163,11 +163,11 @@ impl AdaptiveFeeVariables {
         let max_timestamp = self
             .last_reference_update_timestamp
             .max(self.last_major_swap_timestamp);
-        if current_timestamp < max_timestamp {
-            return Err(ErrorCode::InvalidTimestamp.into());
-        }
+        // if current_timestamp < max_timestamp {
+        //     return Err(ErrorCode::InvalidTimestamp.into());
+        // }
 
-        let reference_age = current_timestamp - self.last_reference_update_timestamp;
+        let reference_age = current_timestamp.saturating_sub(self.last_reference_update_timestamp);
         if reference_age > MAX_REFERENCE_AGE {
             // The references are too old, so reset them
             self.tick_group_index_reference = tick_group_index;
@@ -176,7 +176,7 @@ impl AdaptiveFeeVariables {
             return Ok(());
         }
 
-        let elapsed = current_timestamp - max_timestamp;
+        let elapsed = current_timestamp.saturating_sub(max_timestamp);
         if elapsed < adaptive_fee_constants.filter_period as u64 {
             // high frequency trade
             // no change
@@ -429,12 +429,12 @@ impl<'info> OracleAccessor<'info> {
         }
 
         let data = oracle_account_info.try_borrow_data()?;
-        if data.len() < Oracle::discriminator().len() {
+        if data.len() < Oracle::DISCRIMINATOR.len() {
             return Err(anchor_lang::error::ErrorCode::AccountDiscriminatorNotFound.into());
         }
 
         let disc_bytes = arrayref::array_ref![data, 0, 8];
-        if disc_bytes != &Oracle::discriminator() {
+        if disc_bytes != &Oracle::DISCRIMINATOR {
             return Err(anchor_lang::error::ErrorCode::AccountDiscriminatorMismatch.into());
         }
 

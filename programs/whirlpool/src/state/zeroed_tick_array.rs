@@ -3,7 +3,7 @@ use anchor_lang::prelude::*;
 use super::{Tick, TickArrayType, TickUpdate};
 use crate::errors::ErrorCode;
 
-pub(crate) struct ZeroedTickArray {
+pub struct ZeroedTickArray {
     pub start_tick_index: i32,
     zeroed_tick: Tick,
 }

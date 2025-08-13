@@ -19,10 +19,10 @@
 /// U256 reference:
 /// https://crates.parity.io/sp_core/struct.U256.html
 ///
-use borsh09::{BorshDeserialize, BorshSerialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 use std::borrow::BorrowMut;
 use std::convert::TryInto;
-use std::io::{Error, ErrorKind, Write};
+use std::io::{Error, ErrorKind, Read, Write};
 use std::mem::size_of;
 use uint::construct_uint;
 
@@ -44,15 +44,12 @@ macro_rules! impl_borsh_deserialize_for_bn {
     ($type: ident) => {
         impl BorshDeserialize for $type {
             #[inline]
-            fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-                if buf.len() < size_of::<$type>() {
-                    return Err(Error::new(
-                        ErrorKind::InvalidInput,
-                        "Unexpected length of input",
-                    ));
-                }
-                let res = $type::from_le_bytes(buf[..size_of::<$type>()].try_into().unwrap());
-                *buf = &buf[size_of::<$type>()..];
+            fn deserialize_reader<R: Read>(reader: &mut R) -> std::io::Result<Self> {
+                let mut buf = [0u8; size_of::<$type>()];
+                reader.read_exact(&mut buf).map_err(|_| {
+                    Error::new(ErrorKind::InvalidInput, "Unexpected length of input")
+                })?;
+                let res = $type::from_le_bytes(buf.try_into().unwrap());
                 Ok(res)
             }
         }
