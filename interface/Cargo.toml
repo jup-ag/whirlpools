@@ -1,0 +1,11 @@
+[package]
+name = "whirlpool-interface"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+arrayref = "0.3.8"
+borsh = { version = "1.5", features = ["derive"] }
+bytemuck = { version = "1.24", features = ["derive", "min_const_generics"] }
+pinocchio = "0.9"
+pinocchio-pubkey = "0.3"
