@@ -1,12 +1,7 @@
 [workspace]
 resolver = "2"
-members = ["interface","programs/*"]
-exclude = [
-    "rust-sdk",
-    "ts-sdk",
-    "docs",
-    "examples"
-]
+members = ["interface"]
+exclude = ["rust-sdk", "ts-sdk", "docs", "examples"]
 
 [workspace.dependencies]
 anchor-lang = "0.31"

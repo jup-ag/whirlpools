@@ -1,4 +1,4 @@
-use pinocchio::program_error::ProgramError;
+use solana_program_error::ProgramError;
 
 use crate::{
     constants::{NUM_REWARDS, PROTOCOL_FEE_RATE_MUL_VALUE},
