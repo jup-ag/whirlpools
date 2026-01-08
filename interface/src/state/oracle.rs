@@ -1,5 +1,6 @@
 use bytemuck::{Pod, Zeroable};
-use pinocchio::{program_error::ProgramError, pubkey::Pubkey};
+use solana_address::Address;
+use solana_program_error::ProgramError;
 
 use crate::{
     constants::{
@@ -11,7 +12,7 @@ use crate::{
 #[derive(Debug, Clone, Copy, Pod, Zeroable)]
 #[repr(C, packed)]
 pub struct Oracle {
-    pub whirlpool: Pubkey,
+    pub whirlpool: Address,
     pub trade_enable_timestamp: u64,
     pub adaptive_fee_constants: AdaptiveFeeConstants,
     pub adaptive_fee_variables: AdaptiveFeeVariables,

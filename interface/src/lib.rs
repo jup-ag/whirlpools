@@ -7,4 +7,4 @@ pub mod math;
 pub mod state;
 pub mod utils;
 
-pinocchio_pubkey::declare_id!("whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc");
+solana_address::declare_id!("whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc");

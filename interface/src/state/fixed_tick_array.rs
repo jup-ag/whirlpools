@@ -1,7 +1,8 @@
 #![allow(deprecated)]
 
 use bytemuck::{Pod, Zeroable};
-use pinocchio::{program_error::ProgramError, pubkey::Pubkey};
+use solana_address::Address;
+use solana_program_error::ProgramError;
 
 use crate::{
     constants::{TICK_ARRAY_SIZE, TICK_ARRAY_SIZE_USIZE},
@@ -23,14 +24,14 @@ pub type FixedTickArray = TickArray;
 pub struct TickArray {
     start_tick_index: i32,
     ticks: [Tick; TICK_ARRAY_SIZE_USIZE],
-    whirlpool: Pubkey,
+    whirlpool: Address,
 }
 
 impl Default for TickArray {
     #[inline]
     fn default() -> TickArray {
         TickArray {
-            whirlpool: Pubkey::default(),
+            whirlpool: Address::default(),
             ticks: [Tick::default(); TICK_ARRAY_SIZE_USIZE],
             start_tick_index: 0,
         }
@@ -73,7 +74,7 @@ impl TickArrayType for TickArray {
         self.start_tick_index
     }
 
-    fn whirlpool(&self) -> Pubkey {
+    fn whirlpool(&self) -> Address {
         self.whirlpool
     }
 

@@ -3,12 +3,13 @@ use crate::{
     error::OrcaError,
 };
 use borsh::{BorshDeserialize, BorshSerialize};
-use pinocchio::{program_error::ProgramError, pubkey::Pubkey};
+use solana_address::Address;
+use solana_program_error::ProgramError;
 
 #[derive(Default, BorshDeserialize, BorshSerialize)]
 pub struct Whirlpool {
-    pub whirlpools_config: Pubkey, // 32
-    pub whirlpool_bump: [u8; 1],   // 1
+    pub whirlpools_config: Address, // 32
+    pub whirlpool_bump: [u8; 1],    // 1
 
     pub tick_spacing: u16,            // 2
     pub fee_tier_index_seed: [u8; 2], // 2
@@ -31,14 +32,14 @@ pub struct Whirlpool {
     pub protocol_fee_owed_a: u64, // 8
     pub protocol_fee_owed_b: u64, // 8
 
-    pub token_mint_a: Pubkey,  // 32
-    pub token_vault_a: Pubkey, // 32
+    pub token_mint_a: Address,  // 32
+    pub token_vault_a: Address, // 32
 
     // Q64.64
     pub fee_growth_global_a: u128, // 16
 
-    pub token_mint_b: Pubkey,  // 32
-    pub token_vault_b: Pubkey, // 32
+    pub token_mint_b: Address,  // 32
+    pub token_vault_b: Address, // 32
 
     // Q64.64
     pub fee_growth_global_b: u128, // 16
@@ -61,7 +62,7 @@ impl Whirlpool {
         ]
     }
 
-    pub fn input_token_mint(&self, a_to_b: bool) -> Pubkey {
+    pub fn input_token_mint(&self, a_to_b: bool) -> Address {
         if a_to_b {
             self.token_mint_a
         } else {
@@ -69,7 +70,7 @@ impl Whirlpool {
         }
     }
 
-    pub fn input_token_vault(&self, a_to_b: bool) -> Pubkey {
+    pub fn input_token_vault(&self, a_to_b: bool) -> Address {
         if a_to_b {
             self.token_vault_a
         } else {
@@ -77,7 +78,7 @@ impl Whirlpool {
         }
     }
 
-    pub fn output_token_mint(&self, a_to_b: bool) -> Pubkey {
+    pub fn output_token_mint(&self, a_to_b: bool) -> Address {
         if a_to_b {
             self.token_mint_b
         } else {
@@ -85,7 +86,7 @@ impl Whirlpool {
         }
     }
 
-    pub fn output_token_vault(&self, a_to_b: bool) -> Pubkey {
+    pub fn output_token_vault(&self, a_to_b: bool) -> Address {
         if a_to_b {
             self.token_vault_b
         } else {
@@ -102,10 +103,10 @@ impl Whirlpool {
     //     tick_spacing: u16,
     //     sqrt_price: u128,
     //     default_fee_rate: u16,
-    //     token_mint_a: Pubkey,
-    //     token_vault_a: Pubkey,
-    //     token_mint_b: Pubkey,
-    //     token_vault_b: Pubkey,
+    //     token_mint_a: Address,
+    //     token_vault_a: Address,
+    //     token_mint_b: Address,
+    //     token_vault_b: Address,
     // ) -> Result<()> {
     //     if token_mint_a.ge(&token_mint_b) {
     //         return Err(ErrorCode::InvalidTokenMintOrder.into());
@@ -179,7 +180,7 @@ impl Whirlpool {
     pub fn update_reward_authority(
         &mut self,
         index: usize,
-        authority: Pubkey,
+        authority: Address,
     ) -> Result<(), ProgramError> {
         if index >= NUM_REWARDS {
             return Err(OrcaError::InvalidRewardIndex.into());
@@ -208,8 +209,8 @@ impl Whirlpool {
     pub fn initialize_reward(
         &mut self,
         index: usize,
-        mint: Pubkey,
-        vault: Pubkey,
+        mint: Address,
+        vault: Address,
     ) -> Result<(), ProgramError> {
         if index >= NUM_REWARDS {
             return Err(OrcaError::InvalidRewardIndex.into());
@@ -297,11 +298,11 @@ impl Whirlpool {
 #[derive(Copy, Clone, BorshDeserialize, BorshSerialize, Default, Debug, PartialEq)]
 pub struct WhirlpoolRewardInfo {
     /// Reward token mint.
-    pub mint: Pubkey,
+    pub mint: Address,
     /// Reward vault token account.
-    pub vault: Pubkey,
+    pub vault: Address,
     /// Authority account that has permission to initialize the reward and set emissions.
-    pub authority: Pubkey,
+    pub authority: Address,
     /// Q64.64 number that indicates how many tokens per second are earned per unit of liquidity.
     pub emissions_per_second_x64: u128,
     /// Q64.64 number that tracks the total tokens earned per unit of liquidity since the reward
@@ -311,7 +312,7 @@ pub struct WhirlpoolRewardInfo {
 
 impl WhirlpoolRewardInfo {
     /// Creates a new `WhirlpoolRewardInfo` with the authority set
-    pub fn new(authority: Pubkey) -> Self {
+    pub fn new(authority: Address) -> Self {
         Self {
             authority,
             ..Default::default()
@@ -321,7 +322,7 @@ impl WhirlpoolRewardInfo {
     /// Returns true if this reward is initialized.
     /// Once initialized, a reward cannot transition back to uninitialized.
     pub fn initialized(&self) -> bool {
-        self.mint.ne(&Pubkey::default())
+        self.mint.ne(&Address::default())
     }
 
     /// Maps all reward data to only the reward growth accumulators

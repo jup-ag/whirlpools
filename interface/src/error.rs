@@ -1,4 +1,4 @@
-use pinocchio::program_error::{ProgramError, ToStr};
+use solana_program_error::{ProgramError, ToStr};
 
 #[derive(Debug)]
 pub enum OrcaError {
@@ -71,10 +71,7 @@ pub enum OrcaError {
 }
 
 impl ToStr for OrcaError {
-    fn to_str<E>(&self) -> &'static str
-    where
-        E: 'static + ToStr + TryFrom<u32>,
-    {
+    fn to_str(&self) -> &'static str {
         match self {
             OrcaError::InvalidEnum => "Enum value could not be converted",
             OrcaError::InvalidStartTick => "Invalid start tick index provided.",

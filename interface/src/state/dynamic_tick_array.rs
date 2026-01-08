@@ -5,7 +5,8 @@ use crate::{
 };
 use arrayref::array_ref;
 use borsh::{BorshDeserialize, BorshSerialize};
-use pinocchio::{program_error::ProgramError, pubkey::Pubkey};
+use solana_address::Address;
+use solana_program_error::ProgramError;
 
 #[derive(BorshDeserialize, BorshSerialize, Clone, Default, Debug, PartialEq, Copy)]
 pub struct DynamicTickData {
@@ -74,7 +75,7 @@ impl From<DynamicTick> for Tick {
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct DynamicTickArray {
     pub start_tick_index: i32, // 4 bytes
-    pub whirlpool: Pubkey,     // 32 bytes
+    pub whirlpool: Address,    // 32 bytes
     // 0: uninitialized, 1: initialized
     pub tick_bitmap: u128, // 16 bytes
     pub ticks: [DynamicTick; TICK_ARRAY_SIZE_USIZE],
@@ -162,8 +163,8 @@ impl TickArrayType for DynamicTickArrayLoader {
         i32::from_le_bytes(*array_ref![self.0, Self::START_TICK_INDEX_OFFSET, 4])
     }
 
-    fn whirlpool(&self) -> Pubkey {
-        *array_ref![self.0, Self::WHIRLPOOL_OFFSET, 32]
+    fn whirlpool(&self) -> Address {
+        Address::new_from_array(*array_ref![self.0, Self::WHIRLPOOL_OFFSET, 32])
     }
 
     fn get_next_init_tick_index(

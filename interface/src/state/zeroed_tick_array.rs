@@ -1,4 +1,5 @@
-use pinocchio::{program_error::ProgramError, pubkey::Pubkey};
+use solana_address::Address;
+use solana_program_error::ProgramError;
 
 use crate::error::OrcaError;
 
@@ -27,7 +28,7 @@ impl TickArrayType for ZeroedTickArray {
         self.start_tick_index
     }
 
-    fn whirlpool(&self) -> Pubkey {
+    fn whirlpool(&self) -> Address {
         // Never actually used
         unreachable!()
     }

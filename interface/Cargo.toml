@@ -7,5 +7,11 @@ edition = "2024"
 arrayref = "0.3.8"
 borsh = { version = "1.5", features = ["derive"] }
 bytemuck = { version = "1.24", features = ["derive", "min_const_generics"] }
-pinocchio = "0.9"
-pinocchio-pubkey = "0.3"
+solana-address = { version = "2.0.0", features = [
+    "decode",
+    "borsh",
+    "copy",
+    "bytemuck",
+] }
+solana-account-view = "1.0.0"
+solana-program-error = "3.0"

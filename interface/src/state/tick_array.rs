@@ -1,9 +1,7 @@
 use core::ops::{Deref, DerefMut};
-use pinocchio::{
-    account_info::{Ref, RefMut},
-    program_error::ProgramError,
-    pubkey::Pubkey,
-};
+use solana_account_view::{Ref, RefMut};
+use solana_address::Address;
+use solana_program_error::ProgramError;
 
 use crate::{
     constants::{MAX_TICK_INDEX, MIN_TICK_INDEX, TICK_ARRAY_SIZE},
@@ -15,7 +13,7 @@ use super::{Tick, TickUpdate};
 pub trait TickArrayType {
     fn is_variable_size(&self) -> bool;
     fn start_tick_index(&self) -> i32;
-    fn whirlpool(&self) -> Pubkey;
+    fn whirlpool(&self) -> Address;
 
     fn get_next_init_tick_index(
         &self,
