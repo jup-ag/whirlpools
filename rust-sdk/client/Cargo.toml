@@ -22,7 +22,7 @@ solana-v1 = []
 
 [dependencies]
 anchor-lang = { version = ">=0.28, <0.31", optional = true }
-borsh = { version = "^0.10" }
+borsh = { version = "^1.5" }
 num-derive = { version = "^0.4" }
 num-traits = { version = "^0.2" }
 orca_whirlpools_core = { path = "../core", optional = true }

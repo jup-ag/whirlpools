@@ -37,7 +37,7 @@ solana-version = { version = "^2.1" }
 async-trait = { version = "^0.1" }
 base64 = { version = "^0.20" }
 toml = { version = "^0.7" }
-tokio = { version = "^1.0", features = ["sync"] }
+tokio = { version = "^1.43", features = ["sync"] }
 spl-pod = { version = "^0.5" }
 lazy_static = { version = "^1.4" }
 rstest = "0.18.2"
