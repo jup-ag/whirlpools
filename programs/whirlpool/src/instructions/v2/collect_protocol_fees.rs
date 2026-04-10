@@ -42,7 +42,7 @@ pub struct CollectProtocolFeesV2<'info> {
 }
 
 pub fn handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, CollectProtocolFeesV2<'info>>,
+    ctx: Context<'info, CollectProtocolFeesV2<'info>>,
     remaining_accounts_info: Option<RemainingAccountsInfo>,
 ) -> Result<()> {
     let whirlpool = &ctx.accounts.whirlpool;

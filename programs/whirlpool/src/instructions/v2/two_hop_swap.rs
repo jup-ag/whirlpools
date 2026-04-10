@@ -102,7 +102,7 @@ pub struct TwoHopSwapV2<'info> {
 
 #[allow(clippy::too_many_arguments)]
 pub fn handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, TwoHopSwapV2<'info>>,
+    ctx: Context<'info, TwoHopSwapV2<'info>>,
     amount: u64,
     other_amount_threshold: u64,
     amount_specified_is_input: bool,

@@ -1,4 +1,8 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{
+    program::{invoke, invoke_signed},
+    system_instruction::{create_account, transfer},
+};
 use anchor_spl::associated_token::{self, AssociatedToken};
 use anchor_spl::token_2022::spl_token_2022::extension::{
     BaseStateWithExtensions, StateWithExtensions,
@@ -6,10 +10,10 @@ use anchor_spl::token_2022::spl_token_2022::extension::{
 use anchor_spl::token_2022::spl_token_2022::{
     self, extension::ExtensionType, instruction::AuthorityType,
 };
-use anchor_spl::token_2022::{get_account_data_size, GetAccountDataSize, Token2022};
-use anchor_spl::token_interface::{Mint, TokenAccount, TokenInterface};
-use solana_program::program::{invoke, invoke_signed};
-use solana_program::system_instruction::{create_account, transfer};
+use anchor_spl::token_2022::Token2022;
+use anchor_spl::token_interface::{
+    get_account_data_size, GetAccountDataSize, Mint, TokenAccount, TokenInterface,
+};
 
 use crate::constants::{
     WP_2022_METADATA_NAME_PREFIX, WP_2022_METADATA_SYMBOL, WP_2022_METADATA_URI_BASE,
@@ -42,11 +46,11 @@ pub fn initialize_position_mint_2022<'info>(
     // create account
     invoke(
         &create_account(
-            funder.key,
-            position_mint.key,
+            &funder.key(),
+            &position_mint.key(),
             lamports,
             space as u64,
-            token_2022_program.key,
+            &token_2022_program.key(),
         ),
         &[
             funder.to_account_info(),
@@ -61,7 +65,7 @@ pub fn initialize_position_mint_2022<'info>(
     invoke(
         &spl_token_2022::instruction::initialize_mint_close_authority(
             token_2022_program.key,
-            position_mint.key,
+            &position_mint.key(),
             Some(&authority.key()),
         )?,
         &[
@@ -79,7 +83,7 @@ pub fn initialize_position_mint_2022<'info>(
         invoke(
             &spl_token_2022::extension::metadata_pointer::instruction::initialize(
                 token_2022_program.key,
-                position_mint.key,
+                &position_mint.key(),
                 None,
                 Some(position_mint.key()),
             )?,
@@ -96,8 +100,8 @@ pub fn initialize_position_mint_2022<'info>(
     // freeze authority: Position account (PDA) (reserved for future improvements)
     invoke(
         &spl_token_2022::instruction::initialize_mint2(
-            token_2022_program.key,
-            position_mint.key,
+            &token_2022_program.key(),
+            &position_mint.key(),
             &authority.key(),
             Some(&authority.key()),
             0,
@@ -158,10 +162,10 @@ pub fn initialize_token_metadata_extension<'info>(
     // update authority: WP_NFT_UPDATE_AUTH
     invoke_signed(
         &spl_token_metadata_interface::instruction::initialize(
-            token_2022_program.key,
-            position_mint.key,
-            metadata_update_authority.key,
-            position_mint.key,
+            &token_2022_program.key(),
+            &position_mint.key(),
+            &metadata_update_authority.key(),
+            &position_mint.key(),
             &mint_authority.key(),
             metadata.name,
             metadata.symbol,
@@ -189,7 +193,7 @@ pub fn initialize_position_token_account_2022<'info>(
     associated_token_program: &Program<'info, AssociatedToken>,
 ) -> Result<()> {
     associated_token::create(CpiContext::new(
-        associated_token_program.to_account_info(),
+        associated_token_program.key(),
         associated_token::Create {
             payer: funder.to_account_info(),
             associated_token: position_token_account.to_account_info(),
@@ -213,11 +217,11 @@ pub fn mint_position_token_2022_and_remove_authority<'info>(
     // mint
     invoke_signed(
         &spl_token_2022::instruction::mint_to(
-            token_2022_program.key,
-            position_mint.to_account_info().key,
-            position_token_account.to_account_info().key,
-            authority.to_account_info().key,
-            &[authority.to_account_info().key],
+            &token_2022_program.key(),
+            &position_mint.key(),
+            &position_token_account.key(),
+            &authority.key(),
+            &[&authority.key()],
             1,
         )?,
         &[
@@ -232,12 +236,12 @@ pub fn mint_position_token_2022_and_remove_authority<'info>(
     // remove mint authority
     invoke_signed(
         &spl_token_2022::instruction::set_authority(
-            token_2022_program.key,
-            position_mint.to_account_info().key,
+            &token_2022_program.key(),
+            &position_mint.key(),
             Option::None,
             AuthorityType::MintTokens,
-            authority.to_account_info().key,
-            &[authority.to_account_info().key],
+            &authority.key(),
+            &[&authority.key()],
         )?,
         &[
             position_mint.to_account_info(),
@@ -262,10 +266,10 @@ pub fn burn_and_close_user_position_token_2022<'info>(
     // Burn a single token in user account
     invoke(
         &spl_token_2022::instruction::burn_checked(
-            token_2022_program.key,
-            position_token_account.to_account_info().key,
-            position_mint.to_account_info().key,
-            token_authority.key,
+            &token_2022_program.key(),
+            &position_token_account.key(),
+            &position_mint.key(),
+            &token_authority.key(),
             &[],
             1,
             position_mint.decimals,
@@ -281,10 +285,10 @@ pub fn burn_and_close_user_position_token_2022<'info>(
     // Close user account
     invoke(
         &spl_token_2022::instruction::close_account(
-            token_2022_program.key,
-            position_token_account.to_account_info().key,
-            receiver.key,
-            token_authority.key,
+            &token_2022_program.key(),
+            &position_token_account.key(),
+            &receiver.key(),
+            &token_authority.key(),
             &[],
         )?,
         &[
@@ -298,9 +302,9 @@ pub fn burn_and_close_user_position_token_2022<'info>(
     // Close mint
     invoke_signed(
         &spl_token_2022::instruction::close_account(
-            token_2022_program.key,
-            position_mint.to_account_info().key,
-            receiver.key,
+            &token_2022_program.key(),
+            &position_mint.key(),
+            &receiver.key(),
             &position.key(),
             &[],
         )?,
@@ -353,9 +357,9 @@ pub fn freeze_user_position_token_2022<'info>(
     // Note: Token-2022 program rejects the freeze instruction if the account is already frozen.
     invoke_signed(
         &spl_token_2022::instruction::freeze_account(
-            token_2022_program.key,
-            position_token_account.to_account_info().key,
-            position_mint.to_account_info().key,
+            &token_2022_program.key(),
+            &position_token_account.key(),
+            &position_mint.key(),
             &position.key(),
             &[],
         )?,
@@ -381,9 +385,9 @@ pub fn unfreeze_user_position_token_2022<'info>(
     // Note: Token-2022 program rejects the unfreeze instruction if the account is not frozen.
     invoke_signed(
         &spl_token_2022::instruction::thaw_account(
-            token_2022_program.key,
-            position_token_account.to_account_info().key,
-            position_mint.to_account_info().key,
+            &token_2022_program.key(),
+            &position_token_account.key(),
+            &position_mint.key(),
             &position.key(),
             &[],
         )?,
@@ -408,11 +412,11 @@ pub fn transfer_user_position_token_2022<'info>(
 ) -> Result<()> {
     invoke(
         &spl_token_2022::instruction::transfer_checked(
-            token_2022_program.key,
-            position_token_account.to_account_info().key,
-            position_mint.to_account_info().key,
-            destination_token_account.to_account_info().key,
-            authority.key,
+            &token_2022_program.key(),
+            &position_token_account.key(),
+            &position_mint.key(),
+            &destination_token_account.key(),
+            &authority.key(),
             &[],
             1,
             position_mint.decimals,
@@ -436,10 +440,10 @@ pub fn close_empty_token_account_2022<'info>(
 ) -> Result<()> {
     invoke(
         &spl_token_2022::instruction::close_account(
-            token_2022_program.key,
-            token_account.to_account_info().key,
-            receiver.key,
-            token_authority.key,
+            &token_2022_program.key(),
+            &token_account.key(),
+            &receiver.key(),
+            &token_authority.key(),
             &[],
         )?,
         &[
@@ -464,13 +468,18 @@ pub fn initialize_vault_token_account<'info>(
     system_program: &Program<'info, System>,
 ) -> Result<()> {
     let is_token_2022 = token_program.key() == spl_token_2022::ID;
+    let account_extensions: &[ExtensionType] = if is_token_2022 {
+        &[ExtensionType::ImmutableOwner]
+    } else {
+        &[]
+    };
 
     // The size required for extensions that are mandatory on the TokenAccount side — based on the TokenExtensions enabled on the Mint —
     // is automatically accounted for. For non-mandatory extensions, however, they must be explicitly added,
     // so we specify ImmutableOwner explicitly.
     let space = get_account_data_size(
         CpiContext::new(
-            token_program.to_account_info(),
+            token_program.key(),
             GetAccountDataSize {
                 mint: vault_mint.to_account_info(),
             },
@@ -479,11 +488,7 @@ pub fn initialize_vault_token_account<'info>(
         // However, since the ImmutableOwner extension only increases the account size by 4 bytes, the overhead of always including it is negligible.
         // On the other hand, it makes it easier to comply with cases where ImmutableOwner is required, and it adds a layer of safety from a security standpoint.
         // Therefore, we'll include it by default going forward. (Vaults initialized after this change will have the ImmutableOwner extension.)
-        if is_token_2022 {
-            &[ExtensionType::ImmutableOwner]
-        } else {
-            &[]
-        },
+        account_extensions,
     )?;
 
     let lamports = Rent::get()?.minimum_balance(space as usize);

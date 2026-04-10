@@ -1,7 +1,11 @@
 use std::cmp::max;
 
-use anchor_lang::{prelude::*, system_program, Discriminator};
-use solana_program::{program::invoke_signed, system_instruction};
+use anchor_lang::{
+    prelude::*,
+    solana_program::{program::invoke_signed, system_instruction},
+    system_program,
+    Discriminator,
+};
 
 use crate::{state::*, ID};
 

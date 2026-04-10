@@ -67,7 +67,7 @@ pub struct ModifyLiquidityV2<'info> {
 }
 
 pub fn handler<'info>(
-    ctx: Context<'_, '_, '_, 'info, ModifyLiquidityV2<'info>>,
+    ctx: Context<'info, ModifyLiquidityV2<'info>>,
     liquidity_amount: u128,
     token_max_a: u64,
     token_max_b: u64,

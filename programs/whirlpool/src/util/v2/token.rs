@@ -1,6 +1,7 @@
 use crate::errors::ErrorCode;
 use crate::state::{TokenBadge, Whirlpool};
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::program::invoke_signed;
 use anchor_spl::token_2022::spl_token_2022::extension::transfer_fee::{
     TransferFee, MAX_FEE_BASIS_POINTS,
 };
@@ -38,7 +39,7 @@ pub fn transfer_from_owner_to_vault_v2<'info>(
             u64::from(epoch_transfer_fee.maximum_fee),
         );
         memo::build_memo(
-            CpiContext::new(memo_program.to_account_info(), BuildMemo {}),
+            CpiContext::new(memo_program.key(), BuildMemo {}),
             transfer_fee_memo.as_bytes(),
         )?;
     }
@@ -47,12 +48,12 @@ pub fn transfer_from_owner_to_vault_v2<'info>(
     // The vault doesn't have MemoTransfer extension, so we don't need to use memo_program here
 
     let mut instruction = spl_token_2022::instruction::transfer_checked(
-        token_program.key,
+        &token_program.key(),
         // owner to vault
         &token_owner_account.key(), // from (owner account)
         &token_mint.key(),          // mint
         &token_vault.key(),         // to (vault account)
-        authority.key,              // authority (owner)
+        &authority.key(),           // authority (owner)
         &[],
         amount,
         token_mint.decimals,
@@ -87,7 +88,7 @@ pub fn transfer_from_owner_to_vault_v2<'info>(
         )?;
     }
 
-    solana_program::program::invoke_signed(&instruction, &account_infos, &[])?;
+    invoke_signed(&instruction, &account_infos, &[])?;
 
     Ok(())
 }
@@ -115,7 +116,7 @@ pub fn transfer_from_vault_to_owner_v2<'info>(
             u64::from(epoch_transfer_fee.maximum_fee),
         );
         memo::build_memo(
-            CpiContext::new(memo_program.to_account_info(), BuildMemo {}),
+            CpiContext::new(memo_program.key(), BuildMemo {}),
             transfer_fee_memo.as_bytes(),
         )?;
     }
@@ -123,13 +124,13 @@ pub fn transfer_from_vault_to_owner_v2<'info>(
     // MemoTransfer extension
     if is_transfer_memo_required(token_owner_account)? {
         memo::build_memo(
-            CpiContext::new(memo_program.to_account_info(), BuildMemo {}),
+            CpiContext::new(memo_program.key(), BuildMemo {}),
             memo,
         )?;
     }
 
     let mut instruction = spl_token_2022::instruction::transfer_checked(
-        token_program.key,
+        &token_program.key(),
         // vault to owner
         &token_vault.key(),         // from (vault account)
         &token_mint.key(),          // mint
@@ -169,7 +170,7 @@ pub fn transfer_from_vault_to_owner_v2<'info>(
         )?;
     }
 
-    solana_program::program::invoke_signed(&instruction, &account_infos, &[&whirlpool.seeds()])?;
+    invoke_signed(&instruction, &account_infos, &[&whirlpool.seeds()])?;
 
     Ok(())
 }

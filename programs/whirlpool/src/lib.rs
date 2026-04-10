@@ -875,7 +875,7 @@ pub mod whirlpool {
     /// ### Authority
     /// - `position_authority` - authority that owns the token corresponding to this desired position.
     pub fn collect_fees_v2<'info>(
-        ctx: Context<'_, '_, '_, 'info, CollectFeesV2<'info>>,
+        ctx: Context<'info, CollectFeesV2<'info>>,
         remaining_accounts_info: Option<RemainingAccountsInfo>,
     ) -> Result<()> {
         instructions::v2::collect_fees::handler(ctx, remaining_accounts_info)
@@ -886,7 +886,7 @@ pub mod whirlpool {
     /// ### Authority
     /// - `collect_protocol_fees_authority` - assigned authority in the WhirlpoolConfig that can collect protocol fees
     pub fn collect_protocol_fees_v2<'info>(
-        ctx: Context<'_, '_, '_, 'info, CollectProtocolFeesV2<'info>>,
+        ctx: Context<'info, CollectProtocolFeesV2<'info>>,
         remaining_accounts_info: Option<RemainingAccountsInfo>,
     ) -> Result<()> {
         instructions::v2::collect_protocol_fees::handler(ctx, remaining_accounts_info)
@@ -897,7 +897,7 @@ pub mod whirlpool {
     /// ### Authority
     /// - `position_authority` - authority that owns the token corresponding to this desired position.
     pub fn collect_reward_v2<'info>(
-        ctx: Context<'_, '_, '_, 'info, CollectRewardV2<'info>>,
+        ctx: Context<'info, CollectRewardV2<'info>>,
         reward_index: u8,
         remaining_accounts_info: Option<RemainingAccountsInfo>,
     ) -> Result<()> {
@@ -919,7 +919,7 @@ pub mod whirlpool {
     /// - `LiquidityTooHigh` - Provided liquidity exceeds u128::max.
     /// - `TokenMinSubceeded` - The required token to perform this operation subceeds the user defined amount.
     pub fn decrease_liquidity_v2<'info>(
-        ctx: Context<'_, '_, '_, 'info, ModifyLiquidityV2<'info>>,
+        ctx: Context<'info, ModifyLiquidityV2<'info>>,
         liquidity_amount: u128,
         token_min_a: u64,
         token_min_b: u64,
@@ -949,7 +949,7 @@ pub mod whirlpool {
     /// - `LiquidityTooHigh` - Provided liquidity exceeds u128::max.
     /// - `TokenMaxExceeded` - The required token to perform this operation exceeds the user defined amount.
     pub fn increase_liquidity_v2<'info>(
-        ctx: Context<'_, '_, '_, 'info, ModifyLiquidityV2<'info>>,
+        ctx: Context<'info, ModifyLiquidityV2<'info>>,
         liquidity_amount: u128,
         token_max_a: u64,
         token_max_b: u64,
@@ -1048,7 +1048,7 @@ pub mod whirlpool {
     /// - `LiquidityOverflow` - Liquidity value overflowed 128bits during tick crossing.
     /// - `InvalidTickSpacing` - The swap pool was initialized with tick-spacing of 0.
     pub fn swap_v2<'info>(
-        ctx: Context<'_, '_, '_, 'info, SwapV2<'info>>,
+        ctx: Context<'info, SwapV2<'info>>,
         amount: u64,
         other_amount_threshold: u64,
         sqrt_price_limit: u128,
@@ -1094,7 +1094,7 @@ pub mod whirlpool {
     /// - `DuplicateTwoHopPool` - Error if whirlpool one & two are the same pool.
     #[allow(clippy::too_many_arguments)]
     pub fn two_hop_swap_v2<'info>(
-        ctx: Context<'_, '_, '_, 'info, TwoHopSwapV2<'info>>,
+        ctx: Context<'info, TwoHopSwapV2<'info>>,
         amount: u64,
         other_amount_threshold: u64,
         amount_specified_is_input: bool,
