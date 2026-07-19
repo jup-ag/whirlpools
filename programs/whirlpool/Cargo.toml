@@ -21,7 +21,7 @@ anchor-spl = { workspace = true, features = ["metadata", "memo"] }
 spl-token = { version = ">=6", features = ["no-entrypoint"] }
 spl-transfer-hook-interface = { version = "2.1.0" }
 spl-token-metadata-interface = { version = "0.8.0" }
-solana-program = "3.0.0"
+solana-program = "4.0.0"
 thiserror = "1.0"
 uint = { version = "0.9.5", default-features = false }
 borsh = "0.10"
