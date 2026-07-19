@@ -59,10 +59,7 @@ pub struct TickArrayUpdate {
 
 pub fn get_tick_rent_amount() -> Result<u64> {
     let rent = Rent::get()?;
-    let amount = ((TICK_INITIALIZATION_SIZE as u64 * rent.lamports_per_byte_year) as f64
-        * rent.exemption_threshold)
-        .ceil() as u64;
-    Ok(amount)
+    Ok(rent.minimum_balance(TICK_INITIALIZATION_SIZE))
 }
 
 pub fn calculate_modify_tick_array(
