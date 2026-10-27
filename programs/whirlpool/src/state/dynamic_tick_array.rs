@@ -161,6 +161,11 @@ impl DynamicTickArrayLoader {
     fn tick_data_mut(&mut self) -> &mut [u8] {
         &mut self.0[Self::TICK_DATA_OFFSET..]
     }
+
+    /// The buffer, read-only. The loader's reads use it.
+    fn data(&self) -> DynamicTickArrayData<&[u8; DynamicTickArray::MAX_LEN]> {
+        DynamicTickArrayData(&self.0)
+    }
 }
 
 impl TickArrayType for DynamicTickArrayLoader {
@@ -169,11 +174,11 @@ impl TickArrayType for DynamicTickArrayLoader {
     }
 
     fn start_tick_index(&self) -> i32 {
-        i32::from_le_bytes(*array_ref![self.0, Self::START_TICK_INDEX_OFFSET, 4])
+        self.data().start_tick_index()
     }
 
     fn whirlpool(&self) -> Pubkey {
-        Pubkey::new_from_array(*array_ref![self.0, Self::WHIRLPOOL_OFFSET, 32])
+        self.data().whirlpool()
     }
 
     fn get_next_init_tick_index(
@@ -182,52 +187,12 @@ impl TickArrayType for DynamicTickArrayLoader {
         tick_spacing: u16,
         a_to_b: bool,
     ) -> Result<Option<i32>> {
-        if !self.in_search_range(tick_index, tick_spacing, !a_to_b) {
-            return Err(ErrorCode::InvalidTickArraySequence.into());
-        }
-
-        let mut curr_offset = match self.tick_offset(tick_index, tick_spacing) {
-            Ok(value) => value as i32,
-            Err(e) => return Err(e),
-        };
-
-        // For a_to_b searches, the search moves to the left. The next possible init-tick can be the 1st tick in the current offset
-        // For b_to_a searches, the search moves to the right. The next possible init-tick cannot be within the current offset
-        if !a_to_b {
-            curr_offset += 1;
-        }
-
-        let tick_bitmap = self.tick_bitmap();
-        while (0..TICK_ARRAY_SIZE).contains(&curr_offset) {
-            let initialized = Self::is_initialized_tick(&tick_bitmap, curr_offset as isize);
-            if initialized {
-                return Ok(Some(
-                    (curr_offset * tick_spacing as i32) + self.start_tick_index(),
-                ));
-            }
-
-            curr_offset = if a_to_b {
-                curr_offset - 1
-            } else {
-                curr_offset + 1
-            };
-        }
-
-        Ok(None)
+        self.data()
+            .get_next_init_tick_index(tick_index, tick_spacing, a_to_b)
     }
 
     fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<Tick> {
-        if !self.check_in_array_bounds(tick_index, tick_spacing)
-            || !Tick::check_is_usable_tick(tick_index, tick_spacing)
-        {
-            return Err(ErrorCode::TickNotFound.into());
-        }
-        let tick_offset = self.tick_offset(tick_index, tick_spacing)?;
-        let byte_offset = self.byte_offset(tick_offset)?;
-        let ticks_data = self.tick_data();
-        let mut tick_data = &ticks_data[byte_offset..byte_offset + DynamicTick::INITIALIZED_LEN];
-        let tick = DynamicTick::deserialize(&mut tick_data)?;
-        Ok(tick.into())
+        self.data().get_tick(tick_index, tick_spacing)
     }
 
     fn update_tick(
@@ -284,6 +249,63 @@ impl TickArrayType for DynamicTickArrayLoader {
 
 impl DynamicTickArrayLoader {
     fn byte_offset(&self, tick_offset: isize) -> Result<usize> {
+        self.data().byte_offset(tick_offset)
+    }
+
+    fn tick_bitmap(&self) -> u128 {
+        self.data().tick_bitmap()
+    }
+
+    fn update_tick_bitmap(&mut self, tick_offset: isize, initialized: bool) {
+        let mut tick_bitmap = self.tick_bitmap();
+        if initialized {
+            tick_bitmap |= 1 << tick_offset;
+        } else {
+            tick_bitmap &= !(1 << tick_offset);
+        }
+        self.0[Self::TICK_BITMAP_OFFSET..Self::TICK_BITMAP_OFFSET + 16]
+            .copy_from_slice(&tick_bitmap.to_le_bytes());
+    }
+}
+
+/// Read-only dynamic tick array data: the account data after the discriminator, at any account
+/// size from `DynamicTickArray::MIN_LEN` to `DynamicTickArray::MAX_LEN`.
+///
+/// `DynamicTickArrayLoader` reads a buffer of `MAX_LEN` bytes, so a smaller account must be copied
+/// into a zeroed buffer of that size before it is loaded. This type reads the data at its own
+/// size, and reads the bytes past its end as zeros. So it reads the same as the loader on that
+/// buffer.
+#[derive(Debug, Clone)]
+pub struct DynamicTickArrayData<T>(T);
+
+impl<T: AsRef<[u8]>> DynamicTickArrayData<T> {
+    /// `data` is the account data after the discriminator.
+    pub fn new(data: T) -> Result<Self> {
+        let account_len = DynamicTickArray::DISCRIMINATOR.len() + data.as_ref().len();
+        if !(DynamicTickArray::MIN_LEN..=DynamicTickArray::MAX_LEN).contains(&account_len) {
+            return Err(anchor_lang::error::ErrorCode::AccountDidNotDeserialize.into());
+        }
+        Ok(Self(data))
+    }
+
+    /// The account data after the discriminator.
+    pub fn data(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+
+    pub fn tick_bitmap(&self) -> u128 {
+        u128::from_le_bytes(*array_ref![
+            self.data(),
+            DynamicTickArrayLoader::TICK_BITMAP_OFFSET,
+            16
+        ])
+    }
+
+    fn tick_data(&self) -> &[u8] {
+        &self.data()[DynamicTickArrayLoader::TICK_DATA_OFFSET..]
+    }
+
+    fn byte_offset(&self, tick_offset: isize) -> Result<usize> {
         if tick_offset < 0 {
             return Err(ErrorCode::TickNotFound.into());
         }
@@ -298,24 +320,103 @@ impl DynamicTickArrayLoader {
         Ok(offset)
     }
 
-    fn tick_bitmap(&self) -> u128 {
-        u128::from_le_bytes(*array_ref![self.0, Self::TICK_BITMAP_OFFSET, 16])
-    }
-
-    fn update_tick_bitmap(&mut self, tick_offset: isize, initialized: bool) {
-        let mut tick_bitmap = self.tick_bitmap();
-        if initialized {
-            tick_bitmap |= 1 << tick_offset;
-        } else {
-            tick_bitmap &= !(1 << tick_offset);
-        }
-        self.0[Self::TICK_BITMAP_OFFSET..Self::TICK_BITMAP_OFFSET + 16]
-            .copy_from_slice(&tick_bitmap.to_le_bytes());
-    }
-
     #[inline(always)]
     fn is_initialized_tick(tick_bitmap: &u128, tick_offset: isize) -> bool {
         (*tick_bitmap & (1 << tick_offset)) != 0
+    }
+}
+
+impl<T: AsRef<[u8]>> TickArrayType for DynamicTickArrayData<T> {
+    fn is_variable_size(&self) -> bool {
+        true
+    }
+
+    fn start_tick_index(&self) -> i32 {
+        i32::from_le_bytes(*array_ref![
+            self.data(),
+            DynamicTickArrayLoader::START_TICK_INDEX_OFFSET,
+            4
+        ])
+    }
+
+    fn whirlpool(&self) -> Pubkey {
+        Pubkey::new_from_array(*array_ref![
+            self.data(),
+            DynamicTickArrayLoader::WHIRLPOOL_OFFSET,
+            32
+        ])
+    }
+
+    fn get_next_init_tick_index(
+        &self,
+        tick_index: i32,
+        tick_spacing: u16,
+        a_to_b: bool,
+    ) -> Result<Option<i32>> {
+        if !self.in_search_range(tick_index, tick_spacing, !a_to_b) {
+            return Err(ErrorCode::InvalidTickArraySequence.into());
+        }
+
+        let mut curr_offset = match self.tick_offset(tick_index, tick_spacing) {
+            Ok(value) => value as i32,
+            Err(e) => return Err(e),
+        };
+
+        // For a_to_b searches, the search moves to the left. The next possible init-tick can be the 1st tick in the current offset
+        // For b_to_a searches, the search moves to the right. The next possible init-tick cannot be within the current offset
+        if !a_to_b {
+            curr_offset += 1;
+        }
+
+        let tick_bitmap = self.tick_bitmap();
+        while (0..TICK_ARRAY_SIZE).contains(&curr_offset) {
+            let initialized = Self::is_initialized_tick(&tick_bitmap, curr_offset as isize);
+            if initialized {
+                return Ok(Some(
+                    (curr_offset * tick_spacing as i32) + self.start_tick_index(),
+                ));
+            }
+
+            curr_offset = if a_to_b {
+                curr_offset - 1
+            } else {
+                curr_offset + 1
+            };
+        }
+
+        Ok(None)
+    }
+
+    fn get_tick(&self, tick_index: i32, tick_spacing: u16) -> Result<Tick> {
+        if !self.check_in_array_bounds(tick_index, tick_spacing)
+            || !Tick::check_is_usable_tick(tick_index, tick_spacing)
+        {
+            return Err(ErrorCode::TickNotFound.into());
+        }
+        let tick_offset = self.tick_offset(tick_index, tick_spacing)?;
+        let byte_offset = self.byte_offset(tick_offset)?;
+        let ticks_data = self.tick_data();
+        let tick = match ticks_data.get(byte_offset..byte_offset + DynamicTick::INITIALIZED_LEN) {
+            Some(mut tick_data) => DynamicTick::deserialize(&mut tick_data)?,
+            // Near the end of a smaller account, the bytes past its end read as zeros.
+            None => {
+                let available = ticks_data.get(byte_offset..).unwrap_or_default();
+                let mut tick_data = [0; DynamicTick::INITIALIZED_LEN];
+                tick_data[..available.len()].copy_from_slice(available);
+                DynamicTick::deserialize(&mut tick_data.as_slice())?
+            }
+        };
+        Ok(tick.into())
+    }
+
+    /// The data is read-only.
+    fn update_tick(
+        &mut self,
+        _tick_index: i32,
+        _tick_spacing: u16,
+        _update: &TickUpdate,
+    ) -> Result<()> {
+        Err(anchor_lang::error::ErrorCode::AccountNotMutable.into())
     }
 }
 
